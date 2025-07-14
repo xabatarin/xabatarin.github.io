@@ -167,6 +167,7 @@ def index():
             
             <div style="margin-top: 40px; font-size: 0.9em; opacity: 0.7;">
                 <p>✨ Cada usuario ve sus propios datos ✨</p>
+                <p>📝 Aplicación en modo desarrollo - Solo usuarios autorizados</p>
             </div>
         </div>
     </body>
@@ -194,6 +195,67 @@ def callback():
         session.clear()  # Limpiar sesión anterior
         
         code = request.args.get('code')
+        error = request.args.get('error')
+        
+        if error:
+            if error == 'access_denied':
+                return '''
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <title>Acceso denegado</title>
+                    <meta charset="UTF-8">
+                    <style>
+                        body { 
+                            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+                            text-align: center; 
+                            padding: 40px; 
+                            background: linear-gradient(135deg, #1DB954, #191414);
+                            color: white;
+                            min-height: 100vh;
+                            margin: 0;
+                        }
+                        .container {
+                            background: rgba(0,0,0,0.3);
+                            padding: 40px;
+                            border-radius: 15px;
+                            max-width: 600px;
+                            margin: 0 auto;
+                            backdrop-filter: blur(10px);
+                        }
+                        .button {
+                            background-color: #1DB954;
+                            color: white;
+                            padding: 15px 30px;
+                            border: none;
+                            border-radius: 25px;
+                            font-size: 16px;
+                            cursor: pointer;
+                            text-decoration: none;
+                            display: inline-block;
+                            margin-top: 20px;
+                            transition: all 0.3s ease;
+                        }
+                        .button:hover { 
+                            background-color: #1ed760; 
+                        }
+                        h1 {
+                            color: #e22134;
+                        }
+                    </style>
+                </head>
+                <body>
+                    <div class="container">
+                        <h1>🚫 Acceso no autorizado</h1>
+                        <p><strong>Esta aplicación está en modo desarrollo.</strong></p>
+                        <p>Solo usuarios autorizados pueden acceder actualmente.</p>
+                        <p>Si quieres probar la aplicación, contacta al desarrollador para ser agregado a la lista de usuarios permitidos.</p>
+                        <a class="button" href="/">← Volver al inicio</a>
+                    </div>
+                </body>
+                </html>
+                '''
+        
         if not code:
             return "Error: No se recibió código de autorización"
             
@@ -207,6 +269,58 @@ def callback():
         
         return redirect(url_for('dashboard'))
     except Exception as e:
+        error_msg = str(e)
+        if "invalid_client" in error_msg.lower() or "unauthorized" in error_msg.lower():
+            return '''
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>Usuario no autorizado</title>
+                <meta charset="UTF-8">
+                <style>
+                    body { 
+                        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+                        text-align: center; 
+                        padding: 40px; 
+                        background: linear-gradient(135deg, #1DB954, #191414);
+                        color: white;
+                        min-height: 100vh;
+                        margin: 0;
+                    }
+                    .container {
+                        background: rgba(0,0,0,0.3);
+                        padding: 40px;
+                        border-radius: 15px;
+                        max-width: 600px;
+                        margin: 0 auto;
+                        backdrop-filter: blur(10px);
+                    }
+                    .button {
+                        background-color: #1DB954;
+                        color: white;
+                        padding: 15px 30px;
+                        border: none;
+                        border-radius: 25px;
+                        text-decoration: none;
+                        display: inline-block;
+                        margin-top: 20px;
+                    }
+                    .button:hover { background-color: #1ed760; }
+                    h1 { color: #e22134; }
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <h1>🚫 Aplicación en modo desarrollo</h1>
+                    <p>Esta aplicación de Spotify está actualmente en modo desarrollo.</p>
+                    <p>Solo usuarios específicamente autorizados pueden acceder.</p>
+                    <p><strong>¿Quieres probar la app?</strong><br>
+                    Contacta al desarrollador para ser agregado a la lista de usuarios permitidos.</p>
+                    <a class="button" href="/">← Volver al inicio</a>
+                </div>
+            </body>
+            </html>
+            '''
         return f"Error en callback: {str(e)}"
 
 @app.route('/dashboard')
@@ -517,7 +631,7 @@ def get_top_tracks():
         # Debug: Verificar usuario
         print(f"Obteniendo tracks para: {user_info['display_name']} (ID: {user_info['id']})")
         
-        top_tracks = sp.current_user_top_tracks(limit=20, time_range='medium_term')
+        top_tracks = sp.current_user_top_tracks(limit=20, time_range='short_term')
         
         html = f'''
         <!DOCTYPE html>
