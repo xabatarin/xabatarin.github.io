@@ -384,7 +384,7 @@ def get_top_artists():
         # Debug: Verificar usuario
         print(f"Obteniendo artistas para: {user_info['display_name']} (ID: {user_info['id']})")
         
-        top_artists = sp.current_user_top_artists(limit=20, time_range='medium_term')
+        top_artists = sp.current_user_top_artists(limit=20, time_range='short_term')
         
         html = f'''
         <!DOCTYPE html>
@@ -472,7 +472,7 @@ def get_top_artists():
                 <div class="user-header">
                     <h2>🎤 Top Artistas de {user_info['display_name']}</h2>
                     <p><strong>ID:</strong> {user_info['id']}</p>
-                    <p>Basado en tus últimos meses de escucha</p>
+                    <p>Basado en tus últimas 4 semanas de escucha</p>
                 </div>
         '''
         
@@ -605,7 +605,7 @@ def get_top_tracks():
                 <div class="user-header">
                     <h2>🎵 Top Canciones de {user_info['display_name']}</h2>
                     <p><strong>ID:</strong> {user_info['id']}</p>
-                    <p>Basado en tus últimos meses de escucha</p>
+                    <p>Basado en tus últimas 4 semanas de escucha</p>
                 </div>
         '''
         
