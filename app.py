@@ -14,7 +14,7 @@ app.secret_key = os.getenv('SECRET_KEY', secrets.token_hex(16))
 # Configuración para producción
 CLIENT_ID = os.getenv('SPOTIFY_CLIENT_ID')
 CLIENT_SECRET = os.getenv('SPOTIFY_CLIENT_SECRET') 
-REDIRECT_URI = 'https://emo2music.onrender.com/callback'
+REDIRECT_URI = os.getenv('REDIRECT_URI')
 SCOPE = 'user-top-read playlist-modify-public'
 
 # Verificar que las credenciales estén configuradas
@@ -55,12 +55,16 @@ def index():
 @app.route('/login')
 def login():
     try:
+        # Limpiar cualquier sesión anterior
+        session.clear()
+        
         sp_oauth = SpotifyOAuth(
             client_id=CLIENT_ID,
             client_secret=CLIENT_SECRET,
             redirect_uri=REDIRECT_URI,
             scope=SCOPE,
-            show_dialog=True  # Fuerza a mostrar el diálogo de autorización
+            show_dialog=True,  # Fuerza a mostrar el diálogo de autorización
+            cache_path=None  # No usar cache para evitar conflictos entre usuarios
         )
         auth_url = sp_oauth.get_authorize_url()
         print(f"Redirigiendo a: {auth_url}")  # Para debugging
@@ -76,12 +80,21 @@ def callback():
             client_id=CLIENT_ID,
             client_secret=CLIENT_SECRET,
             redirect_uri=REDIRECT_URI,
-            scope=SCOPE
+            scope=SCOPE,
+            cache_path=None  # No usar cache
         )
         
         code = request.args.get('code')
+        if not code:
+            return "Error: No se recibió código de autorización"
+            
         token_info = sp_oauth.get_access_token(code)
+        if not token_info:
+            return "Error: No se pudo obtener el token de acceso"
+            
+        # Guardar token en la sesión del usuario específico
         session['token_info'] = token_info
+        session['user_authenticated'] = True
         
         return redirect(url_for('get_top_tracks'))
     except Exception as e:
@@ -90,14 +103,33 @@ def callback():
 @app.route('/top-tracks')
 def get_top_tracks():
     try:
+        # Verificar que el usuario esté autenticado
+        if not session.get('user_authenticated'):
+            return redirect(url_for('login'))
+            
         token_info = session.get('token_info', None)
         if not token_info:
             return redirect(url_for('login'))
 
+        # Verificar si el token ha expirado
+        sp_oauth = SpotifyOAuth(
+            client_id=CLIENT_ID,
+            client_secret=CLIENT_SECRET,
+            redirect_uri=REDIRECT_URI,
+            scope=SCOPE,
+            cache_path=None
+        )
+        
+        if sp_oauth.is_token_expired(token_info):
+            token_info = sp_oauth.refresh_access_token(token_info['refresh_token'])
+            session['token_info'] = token_info
+
+        # Crear cliente Spotify con el token del usuario actual
         sp = spotipy.Spotify(auth=token_info['access_token'])
         
         # Get user info
         user_info = sp.current_user()
+        print(f"Usuario autenticado: {user_info['display_name']} (ID: {user_info['id']})")  # Debug
         
         # Get top artists and tracks
         top_artists = sp.current_user_top_artists(limit=10, time_range='short_term')
@@ -157,9 +189,20 @@ def get_top_tracks():
                     border-radius: 25px;
                     text-decoration: none;
                     display: inline-block;
-                    margin: 20px 0;
+                    margin: 10px;
                 }}
                 .back-btn:hover {{ background-color: #1ed760; }}
+                .logout-btn {{
+                    background-color: #e22134;
+                    color: white;
+                    padding: 10px 20px;
+                    border: none;
+                    border-radius: 25px;
+                    text-decoration: none;
+                    display: inline-block;
+                    margin: 10px;
+                }}
+                .logout-btn:hover {{ background-color: #c41e3a; }}
                 @media (max-width: 600px) {{
                     body {{ padding: 10px; }}
                     .item {{ padding: 10px; }}
@@ -169,8 +212,9 @@ def get_top_tracks():
         <body>
             <div class="header">
                 <h1>🎵 Tus Top de Spotify</h1>
-                <div class="user-info">¡Hola {user_info['display_name']}!</div>
+                <div class="user-info">¡Hola {user_info['display_name']}! (ID: {user_info['id']})</div>
                 <a class="back-btn" href="/">← Volver al inicio</a>
+                <a class="logout-btn" href="/logout">🚪 Cerrar sesión</a>
             </div>
         '''
         
@@ -192,6 +236,55 @@ def get_top_tracks():
         
     except Exception as e:
         return f"Error obteniendo tracks: {str(e)}"
+
+@app.route('/logout')
+def logout():
+    session.clear()
+    return '''
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Sesión cerrada</title>
+        <style>
+            body { 
+                font-family: Arial; 
+                text-align: center; 
+                padding: 40px; 
+                background: linear-gradient(135deg, #1DB954, #191414);
+                color: white;
+                min-height: 100vh;
+            }
+            .container {
+                background: rgba(0,0,0,0.3);
+                padding: 40px;
+                border-radius: 15px;
+                max-width: 500px;
+                margin: 0 auto;
+            }
+            .button {
+                background-color: #1DB954;
+                color: white;
+                padding: 15px 30px;
+                border: none;
+                border-radius: 25px;
+                font-size: 16px;
+                cursor: pointer;
+                text-decoration: none;
+                display: inline-block;
+                margin-top: 20px;
+            }
+            .button:hover { background-color: #1ed760; }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <h1>✅ Sesión cerrada exitosamente</h1>
+            <p>Has cerrado sesión de Spotify correctamente.</p>
+            <a class="button" href="/">🎵 Volver al inicio</a>
+        </div>
+    </body>
+    </html>
+    '''
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
