@@ -14,7 +14,7 @@ app.secret_key = os.getenv('SECRET_KEY', secrets.token_hex(16))
 # Configuración para producción
 CLIENT_ID = os.getenv('SPOTIFY_CLIENT_ID')
 CLIENT_SECRET = os.getenv('SPOTIFY_CLIENT_SECRET') 
-REDIRECT_URI = os.getenv('REDIRECT_URI')
+REDIRECT_URI = 'https://emo2music.onrender.com'
 SCOPE = 'user-top-read playlist-modify-public'
 
 # Verificar que las credenciales estén configuradas
