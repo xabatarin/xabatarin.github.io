@@ -412,6 +412,7 @@ def dashboard():
                 
                 <a class="button" href="/top-artists">🎤 Mis Artistas Top</a>
                 <a class="button" href="/top-tracks">🎵 Mis Canciones Top</a>
+                <a class="button" href="/crear-playlist">🪄 Crear Playlist por Estado de Ánimo</a>
                 <br>
                 <a class="button logout" href="/logout">🚪 Cerrar sesión</a>
             </div>
@@ -755,6 +756,106 @@ def get_top_tracks():
         
     except Exception as e:
         return f"Error obteniendo tracks: {str(e)} - <a href='/dashboard'>Volver</a>"
+
+@app.route('/crear-playlist', methods=['GET', 'POST'])
+def crear_playlist():
+    try:
+        token_info = get_token()
+        if not token_info:
+            return redirect(url_for('login'))
+        sp = spotipy.Spotify(auth=token_info['access_token'])
+        user_info = sp.current_user()
+
+        if request.method == 'POST':
+            mood = request.form.get('mood')
+            if mood not in ['feliz', 'triste', 'enfadado']:
+                return 'Estado de ánimo no válido', 400
+
+            # Obtener top artistas y top tracks
+            top_artists = sp.current_user_top_artists(limit=5, time_range='short_term')
+            top_tracks = sp.current_user_top_tracks(limit=10, time_range='short_term')
+
+            artist_ids = [artist['id'] for artist in top_artists['items']]
+            # Buscar canciones populares de los artistas favoritos
+            artist_tracks = []
+            for artist_id in artist_ids:
+                tracks = sp.artist_top_tracks(artist_id, country='ES')['tracks']
+                artist_tracks.extend(tracks[:2])  # 2 canciones por artista
+
+            # Filtrar canciones según el estado de ánimo
+            def filtrar_por_mood(tracks, mood):
+                if mood == 'feliz':
+                    return [t for t in tracks if t['energy'] > 0.6 and t['valence'] > 0.6]
+                elif mood == 'triste':
+                    return [t for t in tracks if t['valence'] < 0.4 and t['energy'] < 0.6]
+                elif mood == 'enfadado':
+                    return [t for t in tracks if t['energy'] < 0.5 and t['valence'] > 0.5]
+                return tracks
+
+            # Obtener audio features para filtrar
+            all_tracks = artist_tracks + top_tracks['items']
+            all_tracks = all_tracks[:30]  # Limitar para no exceder peticiones
+            track_ids = [t['id'] for t in all_tracks if t.get('id')]
+            features = sp.audio_features(track_ids)
+            tracks_with_features = []
+            for t, f in zip(all_tracks, features):
+                if f:
+                    t['energy'] = f['energy']
+                    t['valence'] = f['valence']
+                    tracks_with_features.append(t)
+            # Filtrar por mood
+            filtered_tracks = filtrar_por_mood(tracks_with_features, mood)
+            # Añadir canciones favoritas si no hay suficientes
+            if len(filtered_tracks) < 18:
+                extra = [t for t in tracks_with_features if t not in filtered_tracks]
+                filtered_tracks += extra
+            # Limitar a 18 canciones
+            filtered_tracks = filtered_tracks[:18]
+            uris = [t['uri'] for t in filtered_tracks]
+
+            # Crear la playlist
+            nombre = f"Playlist {'Feliz' if mood=='feliz' else 'Triste' if mood=='triste' else 'Relajada'} - Emo2Music"
+            descripcion = f"Playlist generada automáticamente según tu estado de ánimo: {mood}"
+            playlist = sp.user_playlist_create(user_info['id'], nombre, public=True, description=descripcion)
+            sp.playlist_add_items(playlist['id'], uris)
+
+            return f"<h2>✅ Playlist '{nombre}' creada con éxito!</h2><a href='{playlist['external_urls']['spotify']}' target='_blank'>Ver en Spotify</a><br><a href='/dashboard'>Volver al dashboard</a>"
+
+        # GET: mostrar formulario
+        return '''
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Crear Playlist por Estado de Ánimo</title>
+            <meta charset="UTF-8">
+            <style>
+                body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: linear-gradient(135deg, #1DB954, #191414); color: white; min-height: 100vh; text-align: center; }
+                .container { background: rgba(0,0,0,0.3); padding: 40px; border-radius: 15px; max-width: 500px; margin: 40px auto; }
+                select, button { padding: 12px 20px; border-radius: 20px; border: none; font-size: 1.1em; margin: 10px; }
+                button { background: #1DB954; color: white; font-weight: bold; cursor: pointer; transition: all 0.3s; }
+                button:hover { background: #1ed760; }
+                h2 { color: #1DB954; }
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <h2>Crear Playlist según tu estado de ánimo</h2>
+                <form method="post">
+                    <label for="mood">Selecciona tu estado de ánimo:</label><br><br>
+                    <select name="mood" id="mood" required>
+                        <option value="feliz">😊 Feliz</option>
+                        <option value="triste">😢 Triste</option>
+                        <option value="enfadado">😡 Enfadado</option>
+                    </select><br><br>
+                    <button type="submit">Crear Playlist</button>
+                </form>
+                <br><a href="/dashboard" style="color:#1DB954;">← Volver al dashboard</a>
+            </div>
+        </body>
+        </html>
+        '''
+    except Exception as e:
+        return f"Error al crear la playlist: {str(e)} <br><a href='/dashboard'>Volver</a>"
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
