@@ -568,7 +568,7 @@ def crear_playlist():
             nombre = ""
             
             if mood == 'triste':
-                nombre = "Playlist para un día triste - Emo2Music"
+                nombre = "huts egiten ez dutenak"
                 # Elegir 18 canciones aleatorias de la lista de favoritas
                 final_tracks = random.sample(track_pool, 18)
                 uris = [t['uri'] for t in final_tracks]
