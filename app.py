@@ -794,16 +794,29 @@ def crear_playlist():
 
             # Obtener audio features para filtrar
             all_tracks = artist_tracks + top_tracks['items']
-            all_tracks = [t for t in all_tracks if t.get('id')]  # Solo tracks con id válido
-            all_tracks = all_tracks[:30]  # Limitar para no exceder peticiones
+            # Solo tracks con id válido y único
+            seen_ids = set()
+            valid_tracks = []
+            for t in all_tracks:
+                tid = t.get('id')
+                if tid and tid not in seen_ids:
+                    valid_tracks.append(t)
+                    seen_ids.add(tid)
+            all_tracks = valid_tracks[:30]  # Limitar para no exceder peticiones
             track_ids = [t['id'] for t in all_tracks]
+            if not track_ids:
+                return "<h2>No se encontraron canciones válidas para analizar.</h2><a href='/dashboard'>Volver al dashboard</a>"
             features = sp.audio_features(track_ids)
+            if not features or all(f is None for f in features):
+                return "<h2>No se pudieron obtener características de audio para tus canciones.</h2><a href='/dashboard'>Volver al dashboard</a>"
             tracks_with_features = []
             for t, f in zip(all_tracks, features):
                 if f and f['energy'] is not None and f['valence'] is not None:
                     t['energy'] = f['energy']
                     t['valence'] = f['valence']
                     tracks_with_features.append(t)
+            if not tracks_with_features:
+                return "<h2>Ninguna de tus canciones tiene características de audio disponibles.</h2><a href='/dashboard'>Volver al dashboard</a>"
             # Filtrar por mood
             filtered_tracks = filtrar_por_mood(tracks_with_features, mood)
             # Añadir canciones favoritas si no hay suficientes
@@ -813,6 +826,9 @@ def crear_playlist():
             # Limitar a 18 canciones
             filtered_tracks = filtered_tracks[:18]
             uris = [t['uri'] for t in filtered_tracks]
+
+            if not uris:
+                return "<h2>No se encontraron canciones adecuadas para tu estado de ánimo.</h2><a href='/dashboard'>Volver al dashboard</a>"
 
             # Crear la playlist
             nombre = f"Playlist {'Feliz' if mood=='feliz' else 'Triste' if mood=='triste' else 'Relajada'} - Emo2Music"
