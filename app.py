@@ -5,6 +5,7 @@ from spotipy.cache_handler import MemoryCacheHandler
 import secrets
 import os
 from dotenv import load_dotenv
+import random
 
 # Cargar variables de entorno
 load_dotenv()
@@ -48,127 +49,169 @@ def get_token():
     
     return token_info
 
-@app.route('/')
-def index():
+# --- Plantillas HTML y CSS ---
+
+def get_base_css():
+    """Devuelve el CSS base para todas las páginas para un diseño consistente."""
     return '''
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <title>Emo2Music - Spotify Top Tracks</title>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <style>
             body { 
-                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
-                text-align: center; 
-                padding: 20px; 
-                background: linear-gradient(135deg, #1DB954, #191414);
-                color: white;
-                min-height: 100vh;
+                font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif; 
+                background-color: #121212;
+                color: #FFFFFF;
                 margin: 0;
+                padding: 20px;
                 display: flex;
                 align-items: center;
                 justify-content: center;
+                min-height: calc(100vh - 40px);
             }
             .container {
-                background: rgba(0,0,0,0.3);
-                padding: 50px;
-                border-radius: 20px;
-                max-width: 600px;
-                backdrop-filter: blur(10px);
-                box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+                max-width: 800px;
+                width: 100%;
+                margin: 20px auto;
+                background-color: #181818;
+                padding: 30px 40px;
+                border-radius: 10px;
+                box-shadow: 0 4px_20px rgba(0,0,0,0.2);
+                text-align: center;
+            }
+            h1 {
+                color: #1DB954;
+                font-size: 2.2em;
+                margin-bottom: 10px;
+                font-weight: 700;
+            }
+            h2 {
+                color: #FFFFFF;
+                margin-bottom: 20px;
+                font-weight: 600;
+            }
+            p {
+                font-size: 1.1em;
+                line-height: 1.6;
+                color: #B3B3B3;
             }
             .button {
                 background-color: #1DB954;
-                color: white;
-                padding: 18px 40px;
+                color: #FFFFFF;
+                padding: 15px 35px;
                 border: none;
-                border-radius: 30px;
-                font-size: 18px;
+                border-radius: 50px;
+                font-size: 16px;
                 font-weight: bold;
                 cursor: pointer;
                 text-decoration: none;
                 display: inline-block;
-                margin-top: 30px;
-                transition: all 0.3s ease;
-                box-shadow: 0 4px 15px rgba(29, 185, 84, 0.3);
+                margin: 10px 5px;
+                transition: background-color 0.3s ease, transform 0.2s ease;
             }
             .button:hover { 
                 background-color: #1ed760; 
-                transform: translateY(-3px);
-                box-shadow: 0 6px 20px rgba(29, 185, 84, 0.4);
+                transform: scale(1.05);
             }
-            h1 {
-                font-size: 2.5em;
-                margin-bottom: 20px;
+            .button.logout { 
+                background-color: #535353; 
+            }
+            .button.logout:hover { 
+                background-color: #737373; 
+            }
+            a {
                 color: #1DB954;
-                text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+                text-decoration: none;
             }
-            p {
-                font-size: 1.2em;
-                line-height: 1.6;
-                opacity: 0.9;
-                margin-bottom: 20px;
+            a:hover {
+                text-decoration: underline;
             }
-            .features {
+            .list-item {
+                background-color: #282828;
+                margin: 15px 0;
+                padding: 15px 20px;
+                border-radius: 8px;
                 display: flex;
-                justify-content: space-around;
-                margin: 30px 0;
-                flex-wrap: wrap;
+                align-items: center;
+                text-align: left;
+                transition: background-color 0.3s ease;
             }
-            .feature {
-                background: rgba(255,255,255,0.1);
+            .list-item:hover {
+                background-color: #383838;
+            }
+            .list-item .rank {
+                font-size: 20px;
+                font-weight: bold;
+                margin-right: 20px;
+                color: #B3B3B3;
+                min-width: 30px;
+            }
+            .list-item .info h3 {
+                margin: 0 0 5px 0;
+                color: #FFFFFF;
+                font-size: 1.1em;
+            }
+            .list-item .info p {
+                margin: 0;
+                color: #B3B3B3;
+                font-size: 0.9em;
+            }
+            .user-header {
+                text-align: center;
+                margin-bottom: 30px;
+                background: #282828;
                 padding: 20px;
                 border-radius: 10px;
-                margin: 10px;
-                flex: 1;
-                min-width: 150px;
             }
-            .feature h3 {
-                color: #1DB954;
-                margin-bottom: 10px;
+            .form-container {
+                margin-top: 20px;
+            }
+            .form-container label {
+                font-size: 1.1em;
+                margin-bottom: 15px;
+                display: block;
+            }
+            .form-container select {
+                background-color: #282828;
+                color: white;
+                padding: 12px 20px;
+                border-radius: 5px;
+                border: 1px solid #535353;
+                font-size: 1em;
+                margin: 10px;
+            }
+            .footer-nav {
+                text-align: center; 
+                margin-top: 30px;
             }
             @media (max-width: 768px) {
+                body {
+                    align-items: flex-start;
+                }
                 .container {
-                    padding: 30px 20px;
-                    margin: 20px;
+                    padding: 20px;
+                    margin-top: 20px;
                 }
                 h1 {
-                    font-size: 2em;
-                }
-                .features {
-                    flex-direction: column;
+                    font-size: 1.8em;
                 }
             }
         </style>
+    '''
+
+@app.route('/')
+def index():
+    return f'''
+    <!DOCTYPE html>
+    <html lang="es">
+    <head>
+        <title>Emo2Music - Analiza tu Música</title>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        {get_base_css()}
     </head>
     <body>
         <div class="container">
-            <h1>🎵 Emo2Music</h1>
-            <p>Descubre tus artistas y canciones más escuchadas de Spotify</p>
-            
-            <div class="features">
-                <div class="feature">
-                    <h3>🎤 Artistas Top</h3>
-                    <p>Ve tus artistas favoritos</p>
-                </div>
-                <div class="feature">
-                    <h3>🎵 Canciones Top</h3>
-                    <p>Descubre tus hits personales</p>
-                </div>
-                <div class="feature">
-                    <h3>📊 Estadísticas</h3>
-                    <p>Datos detallados de tu música</p>
-                </div>
-            </div>
-            
-            <p>Conecta tu cuenta de Spotify y explora tu música como nunca antes.</p>
-            <a class="button" href="/login">🚀 Iniciar sesión con Spotify</a>
-            
-            <div style="margin-top: 40px; font-size: 0.9em; opacity: 0.7;">
-                <p>✨ Cada usuario ve sus propios datos ✨</p>
-                <p>📝 Aplicación en modo desarrollo - Solo usuarios autorizados</p>
-            </div>
+            <h1>Emo2Music</h1>
+            <p>Conecta tu cuenta de Spotify para descubrir tus artistas y canciones más escuchadas, y crea playlists basadas en tu estado de ánimo.</p>
+            <a class="button" href="/login">Iniciar Sesión con Spotify</a>
         </div>
     </body>
     </html>
@@ -199,58 +242,20 @@ def callback():
         
         if error:
             if error == 'access_denied':
-                return '''
+                return f'''
                 <!DOCTYPE html>
-                <html>
+                <html lang="es">
                 <head>
-                    <title>Acceso denegado</title>
+                    <title>Acceso Denegado</title>
                     <meta charset="UTF-8">
-                    <style>
-                        body { 
-                            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
-                            text-align: center; 
-                            padding: 40px; 
-                            background: linear-gradient(135deg, #1DB954, #191414);
-                            color: white;
-                            min-height: 100vh;
-                            margin: 0;
-                        }
-                        .container {
-                            background: rgba(0,0,0,0.3);
-                            padding: 40px;
-                            border-radius: 15px;
-                            max-width: 600px;
-                            margin: 0 auto;
-                            backdrop-filter: blur(10px);
-                        }
-                        .button {
-                            background-color: #1DB954;
-                            color: white;
-                            padding: 15px 30px;
-                            border: none;
-                            border-radius: 25px;
-                            font-size: 16px;
-                            cursor: pointer;
-                            text-decoration: none;
-                            display: inline-block;
-                            margin-top: 20px;
-                            transition: all 0.3s ease;
-                        }
-                        .button:hover { 
-                            background-color: #1ed760; 
-                        }
-                        h1 {
-                            color: #e22134;
-                        }
-                    </style>
+                    {get_base_css()}
                 </head>
                 <body>
                     <div class="container">
-                        <h1>🚫 Acceso no autorizado</h1>
-                        <p><strong>Esta aplicación está en modo desarrollo.</strong></p>
-                        <p>Solo usuarios autorizados pueden acceder actualmente.</p>
-                        <p>Si quieres probar la aplicación, contacta al desarrollador para ser agregado a la lista de usuarios permitidos.</p>
-                        <a class="button" href="/">← Volver al inicio</a>
+                        <h1>Acceso Denegado</h1>
+                        <p><strong>La aplicación está en modo de desarrollo.</strong></p>
+                        <p>Para utilizarla, el propietario de la aplicación debe añadir tu cuenta de Spotify a la lista de usuarios autorizados.</p>
+                        <a class="button" href="/">Volver al Inicio</a>
                     </div>
                 </body>
                 </html>
@@ -271,52 +276,20 @@ def callback():
     except Exception as e:
         error_msg = str(e)
         if "invalid_client" in error_msg.lower() or "unauthorized" in error_msg.lower():
-            return '''
+            return f'''
             <!DOCTYPE html>
-            <html>
+            <html lang="es">
             <head>
-                <title>Usuario no autorizado</title>
+                <title>Usuario No Autorizado</title>
                 <meta charset="UTF-8">
-                <style>
-                    body { 
-                        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
-                        text-align: center; 
-                        padding: 40px; 
-                        background: linear-gradient(135deg, #1DB954, #191414);
-                        color: white;
-                        min-height: 100vh;
-                        margin: 0;
-                    }
-                    .container {
-                        background: rgba(0,0,0,0.3);
-                        padding: 40px;
-                        border-radius: 15px;
-                        max-width: 600px;
-                        margin: 0 auto;
-                        backdrop-filter: blur(10px);
-                    }
-                    .button {
-                        background-color: #1DB954;
-                        color: white;
-                        padding: 15px 30px;
-                        border: none;
-                        border-radius: 25px;
-                        text-decoration: none;
-                        display: inline-block;
-                        margin-top: 20px;
-                    }
-                    .button:hover { background-color: #1ed760; }
-                    h1 { color: #e22134; }
-                </style>
+                {get_base_css()}
             </head>
             <body>
                 <div class="container">
-                    <h1>🚫 Aplicación en modo desarrollo</h1>
-                    <p>Esta aplicación de Spotify está actualmente en modo desarrollo.</p>
-                    <p>Solo usuarios específicamente autorizados pueden acceder.</p>
-                    <p><strong>¿Quieres probar la app?</strong><br>
-                    Contacta al desarrollador para ser agregado a la lista de usuarios permitidos.</p>
-                    <a class="button" href="/">← Volver al inicio</a>
+                    <h1>Aplicación en Modo Desarrollo</h1>
+                    <p>Esta aplicación de Spotify se encuentra actualmente en modo de desarrollo y solo los usuarios autorizados pueden acceder.</p>
+                    <p>Si deseas probar la aplicación, por favor, contacta al desarrollador.</p>
+                    <a class="button" href="/">Volver al Inicio</a>
                 </div>
             </body>
             </html>
@@ -338,83 +311,28 @@ def dashboard():
         
         html = f'''
         <!DOCTYPE html>
-        <html>
+        <html lang="es">
         <head>
-            <title>Dashboard - {user_info['display_name']}</title>
+            <title>Panel de Control - {user_info['display_name']}</title>
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <style>
-                body {{ 
-                    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
-                    text-align: center; 
-                    padding: 20px; 
-                    background: linear-gradient(135deg, #1DB954, #191414);
-                    color: white;
-                    min-height: 100vh;
-                    margin: 0;
-                }}
-                .container {{
-                    background: rgba(0,0,0,0.3);
-                    padding: 40px;
-                    border-radius: 15px;
-                    max-width: 800px;
-                    margin: 0 auto;
-                    backdrop-filter: blur(10px);
-                }}
-                .user-info {{
-                    background: rgba(255,255,255,0.1);
-                    padding: 20px;
-                    border-radius: 10px;
-                    margin-bottom: 30px;
-                }}
-                .button {{
-                    background-color: #1DB954;
-                    color: white;
-                    padding: 15px 30px;
-                    border: none;
-                    border-radius: 25px;
-                    font-size: 16px;
-                    cursor: pointer;
-                    text-decoration: none;
-                    display: inline-block;
-                    margin: 10px;
-                    transition: all 0.3s ease;
-                }}
-                .button:hover {{ 
-                    background-color: #1ed760; 
-                    transform: translateY(-2px);
-                }}
-                .logout {{ 
-                    background-color: #e22134; 
-                }}
-                .logout:hover {{ 
-                    background-color: #ff4757; 
-                }}
-                h1 {{ 
-                    color: #1DB954; 
-                    margin-bottom: 20px;
-                }}
-                h2 {{
-                    margin: 10px 0;
-                }}
-            </style>
+            {get_base_css()}
         </head>
         <body>
             <div class="container">
-                <div class="user-info">
-                    <h2>¡Hola, {user_info['display_name']}! 👋</h2>
-                    <p><strong>ID de usuario:</strong> {user_info['id']}</p>
-                    <p><strong>Seguidores:</strong> {user_info['followers']['total']}</p>
+                <div class="user-header">
+                    <h2>Bienvenido, {user_info['display_name']}</h2>
+                    <p><strong>ID de Usuario:</strong> {user_info['id']} | <strong>Seguidores:</strong> {user_info['followers']['total']}</p>
                 </div>
                 
-                <h1>🎵 Tu Dashboard de Spotify</h1>
-                <p>Elige qué quieres ver de tu cuenta:</p>
+                <h1>Panel de Control</h1>
+                <p>Selecciona una opción para explorar tu música.</p>
                 
-                <a class="button" href="/top-artists">🎤 Mis Artistas Top</a>
-                <a class="button" href="/top-tracks">🎵 Mis Canciones Top</a>
-                <a class="button" href="/crear-playlist">🪄 Crear Playlist por Estado de Ánimo</a>
+                <a class="button" href="/top-artists">Artistas Principales</a>
+                <a class="button" href="/top-tracks">Canciones Principales</a>
+                <a class="button" href="/crear-playlist">Crear Playlist por Ánimo</a>
                 <br>
-                <a class="button logout" href="/logout">🚪 Cerrar sesión</a>
+                <a class="button logout" href="/logout">Cerrar Sesión</a>
             </div>
         </body>
         </html>
@@ -428,59 +346,20 @@ def dashboard():
 @app.route('/logout')
 def logout():
     session.clear()  # Limpiar toda la sesión
-    return '''
+    return f'''
     <!DOCTYPE html>
-    <html>
+    <html lang="es">
     <head>
-        <title>Sesión cerrada</title>
+        <title>Sesión Cerrada</title>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <style>
-            body { 
-                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
-                text-align: center; 
-                padding: 40px; 
-                background: linear-gradient(135deg, #1DB954, #191414);
-                color: white;
-                min-height: 100vh;
-                margin: 0;
-            }
-            .container {
-                background: rgba(0,0,0,0.3);
-                padding: 40px;
-                border-radius: 15px;
-                max-width: 500px;
-                margin: 0 auto;
-                backdrop-filter: blur(10px);
-            }
-            .button {
-                background-color: #1DB954;
-                color: white;
-                padding: 15px 30px;
-                border: none;
-                border-radius: 25px;
-                font-size: 16px;
-                cursor: pointer;
-                text-decoration: none;
-                display: inline-block;
-                margin-top: 20px;
-                transition: all 0.3s ease;
-            }
-            .button:hover { 
-                background-color: #1ed760; 
-                transform: translateY(-2px);
-            }
-            h1 {
-                color: #1DB954;
-            }
-        </style>
+        {get_base_css()}
     </head>
     <body>
         <div class="container">
-            <h1>✅ Sesión cerrada exitosamente</h1>
-            <p>Has cerrado sesión de Spotify correctamente.</p>
-            <p>Ahora otros usuarios pueden iniciar sesión con sus propias cuentas.</p>
-            <a class="button" href="/">🎵 Volver al inicio</a>
+            <h1>Sesión Cerrada</h1>
+            <p>Has cerrado sesión de tu cuenta de Spotify correctamente.</p>
+            <a class="button" href="/">Volver a la página de inicio</a>
         </div>
     </body>
     </html>
@@ -503,112 +382,42 @@ def get_top_artists():
         
         html = f'''
         <!DOCTYPE html>
-        <html>
+        <html lang="es">
         <head>
-            <title>Top Artistas - {user_info['display_name']}</title>
+            <title>Artistas Principales - {user_info['display_name']}</title>
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <style>
-                body {{ 
-                    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
-                    padding: 20px; 
-                    background: linear-gradient(135deg, #1DB954, #191414);
-                    color: white;
-                    min-height: 100vh;
-                    margin: 0;
-                }}
-                .container {{
-                    max-width: 800px;
-                    margin: 0 auto;
-                    background: rgba(0,0,0,0.3);
-                    padding: 30px;
-                    border-radius: 15px;
-                    backdrop-filter: blur(10px);
-                }}
-                .user-header {{
-                    text-align: center;
-                    margin-bottom: 30px;
-                    background: rgba(255,255,255,0.1);
-                    padding: 15px;
-                    border-radius: 10px;
-                }}
-                .artist {{
-                    background: rgba(255,255,255,0.1);
-                    margin: 10px 0;
-                    padding: 15px;
-                    border-radius: 10px;
-                    display: flex;
-                    align-items: center;
-                    transition: all 0.3s ease;
-                }}
-                .artist:hover {{
-                    background: rgba(255,255,255,0.2);
-                    transform: translateX(5px);
-                }}
-                .rank {{
-                    font-size: 24px;
-                    font-weight: bold;
-                    margin-right: 20px;
-                    color: #1DB954;
-                    min-width: 40px;
-                }}
-                .artist-info h3 {{
-                    margin: 0 0 5px 0;
-                    color: white;
-                }}
-                .artist-info p {{
-                    margin: 0;
-                    opacity: 0.8;
-                    font-size: 14px;
-                }}
-                .button {{
-                    background-color: #1DB954;
-                    color: white;
-                    padding: 10px 20px;
-                    border: none;
-                    border-radius: 20px;
-                    text-decoration: none;
-                    display: inline-block;
-                    margin: 5px;
-                    transition: all 0.3s ease;
-                }}
-                .button:hover {{ 
-                    background-color: #1ed760; 
-                    transform: translateY(-2px);
-                }}
-                .button-nav {{
-                    text-align: center; 
-                    margin-top: 30px;
-                }}
-            </style>
+            {get_base_css()}
         </head>
         <body>
             <div class="container">
                 <div class="user-header">
-                    <h2>🎤 Top Artistas de {user_info['display_name']}</h2>
-                    <p><strong>ID:</strong> {user_info['id']}</p>
-                    <p>Basado en tus últimas 4 semanas de escucha</p>
+                    <h2>Artistas Principales de {user_info['display_name']}</h2>
+                    <p>Basado en tu actividad de las últimas 4 semanas.</p>
                 </div>
         '''
         
-        for i, artist in enumerate(top_artists['items'], 1):
-            genres = ', '.join(artist['genres'][:3]) if artist['genres'] else 'Sin género'
-            html += f'''
-                <div class="artist">
-                    <div class="rank">#{i}</div>
-                    <div class="artist-info">
-                        <h3>{artist['name']}</h3>
-                        <p><strong>Géneros:</strong> {genres}</p>
-                        <p><strong>Popularidad:</strong> {artist['popularity']}/100</p>
+        if not top_artists['items']:
+            html += "<p>No se encontraron artistas principales. ¡Escucha más música!</p>"
+        else:
+            for i, artist in enumerate(top_artists['items'], 1):
+                genres = ', '.join(artist['genres'][:3]) if artist['genres'] else 'No especificado'
+                html += f'''
+                    <div class="list-item">
+                        <div class="rank">#{i}</div>
+                        <div class="info">
+                            <h3>{artist['name']}</h3>
+                            <p><strong>Géneros:</strong> {genres}</p>
+                            <p><strong>Popularidad:</strong> {artist['popularity']}/100</p>
+                        </div>
                     </div>
-                </div>
-            '''
+                '''
         
-        html += '''
-                <div class="button-nav">
-                    <a class="button" href="/dashboard">🏠 Dashboard</a>
-                    <a class="button" href="/top-tracks">🎵 Ver Canciones Top</a>
-                    <a class="button" href="/logout">🚪 Cerrar sesión</a>
+        html += f'''
+                <div class="footer-nav">
+                    <a class="button" href="/dashboard">Panel de Control</a>
+                    <a class="button" href="/top-tracks">Ver Canciones Principales</a>
+                    <a class="button logout" href="/logout">Cerrar Sesión</a>
                 </div>
             </div>
         </body>
@@ -636,117 +445,47 @@ def get_top_tracks():
         
         html = f'''
         <!DOCTYPE html>
-        <html>
+        <html lang="es">
         <head>
-            <title>Top Canciones - {user_info['display_name']}</title>
+            <title>Canciones Principales - {user_info['display_name']}</title>
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <style>
-                body {{ 
-                    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
-                    padding: 20px; 
-                    background: linear-gradient(135deg, #1DB954, #191414);
-                    color: white;
-                    min-height: 100vh;
-                    margin: 0;
-                }}
-                .container {{
-                    max-width: 800px;
-                    margin: 0 auto;
-                    background: rgba(0,0,0,0.3);
-                    padding: 30px;
-                    border-radius: 15px;
-                    backdrop-filter: blur(10px);
-                }}
-                .user-header {{
-                    text-align: center;
-                    margin-bottom: 30px;
-                    background: rgba(255,255,255,0.1);
-                    padding: 15px;
-                    border-radius: 10px;
-                }}
-                .track {{
-                    background: rgba(255,255,255,0.1);
-                    margin: 10px 0;
-                    padding: 15px;
-                    border-radius: 10px;
-                    display: flex;
-                    align-items: center;
-                    transition: all 0.3s ease;
-                }}
-                .track:hover {{
-                    background: rgba(255,255,255,0.2);
-                    transform: translateX(5px);
-                }}
-                .rank {{
-                    font-size: 24px;
-                    font-weight: bold;
-                    margin-right: 20px;
-                    color: #1DB954;
-                    min-width: 40px;
-                }}
-                .track-info h3 {{
-                    margin: 0 0 5px 0;
-                    color: white;
-                }}
-                .track-info p {{
-                    margin: 0;
-                    opacity: 0.8;
-                    font-size: 14px;
-                }}
-                .button {{
-                    background-color: #1DB954;
-                    color: white;
-                    padding: 10px 20px;
-                    border: none;
-                    border-radius: 20px;
-                    text-decoration: none;
-                    display: inline-block;
-                    margin: 5px;
-                    transition: all 0.3s ease;
-                }}
-                .button:hover {{ 
-                    background-color: #1ed760; 
-                    transform: translateY(-2px);
-                }}
-                .button-nav {{
-                    text-align: center; 
-                    margin-top: 30px;
-                }}
-            </style>
+            {get_base_css()}
         </head>
         <body>
             <div class="container">
                 <div class="user-header">
-                    <h2>🎵 Top Canciones de {user_info['display_name']}</h2>
-                    <p><strong>ID:</strong> {user_info['id']}</p>
-                    <p>Basado en tus últimas 4 semanas de escucha</p>
+                    <h2>Canciones Principales de {user_info['display_name']}</h2>
+                    <p>Basado en tu actividad de las últimas 4 semanas.</p>
                 </div>
         '''
         
-        for i, track in enumerate(top_tracks['items'], 1):
-            artists = ', '.join([artist['name'] for artist in track['artists']])
-            duration_ms = track['duration_ms']
-            duration_min = duration_ms // 60000
-            duration_sec = (duration_ms % 60000) // 1000
-            
-            html += f'''
-                <div class="track">
-                    <div class="rank">#{i}</div>
-                    <div class="track-info">
-                        <h3>{track['name']}</h3>
-                        <p><strong>Artista:</strong> {artists}</p>
-                        <p><strong>Álbum:</strong> {track['album']['name']}</p>
-                        <p><strong>Duración:</strong> {duration_min}:{duration_sec:02d} | <strong>Popularidad:</strong> {track['popularity']}/100</p>
+        if not top_tracks['items']:
+            html += "<p>No se encontraron canciones principales. ¡Escucha más música!</p>"
+        else:
+            for i, track in enumerate(top_tracks['items'], 1):
+                artists = ', '.join([artist['name'] for artist in track['artists']])
+                duration_ms = track['duration_ms']
+                duration_min = duration_ms // 60000
+                duration_sec = (duration_ms % 60000) // 1000
+                
+                html += f'''
+                    <div class="list-item">
+                        <div class="rank">#{i}</div>
+                        <div class="info">
+                            <h3>{track['name']}</h3>
+                            <p><strong>Artista:</strong> {artists}</p>
+                            <p><strong>Álbum:</strong> {track['album']['name']}</p>
+                            <p><strong>Duración:</strong> {duration_min}:{duration_sec:02d} | <strong>Popularidad:</strong> {track['popularity']}/100</p>
+                        </div>
                     </div>
-                </div>
-            '''
+                '''
         
-        html += '''
-                <div class="button-nav">
-                    <a class="button" href="/dashboard">🏠 Dashboard</a>
-                    <a class="button" href="/top-artists">🎤 Ver Artistas Top</a>
-                    <a class="button" href="/logout">🚪 Cerrar sesión</a>
+        html += f'''
+                <div class="footer-nav">
+                    <a class="button" href="/dashboard">Panel de Control</a>
+                    <a class="button" href="/top-artists">Ver Artistas Principales</a>
+                    <a class="button logout" href="/logout">Cerrar Sesión</a>
                 </div>
             </div>
         </body>
@@ -771,102 +510,141 @@ def crear_playlist():
             if mood not in ['feliz', 'triste', 'enfadado']:
                 return 'Estado de ánimo no válido', 400
 
-            # Obtener top artistas y top tracks
-            top_artists = sp.current_user_top_artists(limit=5, time_range='short_term')
-            top_tracks = sp.current_user_top_tracks(limit=10, time_range='short_term')
+            # Si está enfadado, redirigir a una playlist tranquila
+            if mood == 'enfadado':
+                # URL de una playlist de Spotify con música tranquila
+                calm_playlist_url = 'https://open.spotify.com/playlist/37i9dQZF1DX8NTLI25q_x0'
+                return f'''
+                <!DOCTYPE html>
+                <html lang="es">
+                <head>
+                    <title>Redirigiendo...</title>
+                    <meta charset="UTF-8">
+                    {get_base_css()}
+                    <meta http-equiv="refresh" content="4;url={calm_playlist_url}" />
+                </head>
+                <body>
+                    <div class="container">
+                        <h1>Redirigiendo a una Playlist Tranquila</h1>
+                        <p>Para ayudarte a relajar, te estamos llevando a una playlist de música tranquila en Spotify.</p>
+                        <p>Si no eres redirigido, <a href="{calm_playlist_url}" target="_blank">haz clic aquí</a>.</p>
+                    </div>
+                </body>
+                </html>
+                '''
 
-            artist_ids = [artist['id'] for artist in top_artists['items']]
-            # Buscar canciones populares de los artistas favoritos
-            artist_tracks = []
-            for artist_id in artist_ids:
-                tracks = sp.artist_top_tracks(artist_id, country='ES')['tracks']
-                artist_tracks.extend(tracks[:2])  # 2 canciones por artista
+            # --- Lógica para Feliz y Triste ---
+            
+            # 1. Obtener canciones base
+            top_artists = sp.current_user_top_artists(limit=10, time_range='long_term')
+            top_tracks = sp.current_user_top_tracks(limit=30, time_range='short_term')
 
-            # Filtrar canciones según el estado de ánimo
-            def filtrar_por_mood(tracks, mood):
-                if mood == 'feliz':
-                    return [t for t in tracks if t['energy'] > 0.6 and t['valence'] > 0.6]
-                elif mood == 'triste':
-                    return [t for t in tracks if t['valence'] < 0.4 and t['energy'] < 0.6]
-                elif mood == 'enfadado':
-                    return [t for t in tracks if t['energy'] < 0.5 and t['valence'] > 0.5]
-                return tracks
+            # Diccionario para evitar duplicados usando el ID de la canción como clave
+            all_tracks = {}
 
-            # Obtener audio features para filtrar
-            all_tracks = artist_tracks + top_tracks['items']
-            # Solo tracks con id válido y único
-            seen_ids = set()
-            valid_tracks = []
-            for t in all_tracks:
-                tid = t.get('id')
-                if tid and tid not in seen_ids:
-                    valid_tracks.append(t)
-                    seen_ids.add(tid)
-            all_tracks = valid_tracks[:30]  # Limitar para no exceder peticiones
-            track_ids = [t['id'] for t in all_tracks]
-            if not track_ids:
-                return "<h2>No se encontraron canciones válidas para analizar.</h2><a href='/dashboard'>Volver al dashboard</a>"
-            features = sp.audio_features(track_ids)
-            if not features or all(f is None for f in features):
-                return "<h2>No se pudieron obtener características de audio para tus canciones.</h2><a href='/dashboard'>Volver al dashboard</a>"
-            tracks_with_features = []
-            for t, f in zip(all_tracks, features):
-                if f and f['energy'] is not None and f['valence'] is not None:
-                    t['energy'] = f['energy']
-                    t['valence'] = f['valence']
-                    tracks_with_features.append(t)
-            if not tracks_with_features:
-                return "<h2>Ninguna de tus canciones tiene características de audio disponibles.</h2><a href='/dashboard'>Volver al dashboard</a>"
-            # Filtrar por mood
-            filtered_tracks = filtrar_por_mood(tracks_with_features, mood)
-            # Añadir canciones favoritas si no hay suficientes
-            if len(filtered_tracks) < 18:
-                extra = [t for t in tracks_with_features if t not in filtered_tracks]
-                filtered_tracks += extra
-            # Limitar a 18 canciones
-            filtered_tracks = filtered_tracks[:18]
-            uris = [t['uri'] for t in filtered_tracks]
+            # Añadir las 30 canciones más escuchadas del usuario
+            for track in top_tracks['items']:
+                if track and track.get('id'):
+                    all_tracks[track['id']] = track
+            
+            # Añadir hasta 5 canciones de los 10 artistas favoritos
+            for artist in top_artists['items']:
+                try:
+                    # Usamos 'ES' como mercado para obtener resultados relevantes
+                    artist_tracks = sp.artist_top_tracks(artist['id'], country='ES')['tracks']
+                    for track in artist_tracks[:5]:
+                        if track and track.get('id') and track['id'] not in all_tracks:
+                            all_tracks[track['id']] = track
+                except Exception:
+                    continue # Si un artista no tiene canciones o falla, continuamos
 
-            if not uris:
-                return "<h2>No se encontraron canciones adecuadas para tu estado de ánimo.</h2><a href='/dashboard'>Volver al dashboard</a>"
+            # Convertir el diccionario de canciones únicas a una lista
+            track_pool = list(all_tracks.values())
+            
+            if len(track_pool) < 18:
+                 return "<h2>No tienes suficientes canciones para crear una playlist. ¡Escucha más música!</h2><a href='/dashboard'>Volver</a>"
 
-            # Crear la playlist
-            nombre = f"Playlist {'Feliz' if mood=='feliz' else 'Triste' if mood=='triste' else 'Relajada'} - Emo2Music"
-            descripcion = f"Playlist generada automáticamente según tu estado de ánimo: {mood}"
+            uris = []
+            nombre = ""
+            
+            if mood == 'triste':
+                nombre = "Playlist para un día triste - Emo2Music"
+                # Elegir 18 canciones aleatorias de la lista de favoritas
+                final_tracks = random.sample(track_pool, 18)
+                uris = [t['uri'] for t in final_tracks]
+
+            elif mood == 'feliz':
+                nombre = "Playlist para un día feliz - Emo2Music"
+                # Elegir 10 canciones aleatorias de la lista de favoritas
+                base_tracks = random.sample(track_pool, 10)
+                uris = [t['uri'] for t in base_tracks]
+                
+                # Obtener 8 recomendaciones basadas en las canciones elegidas
+                seed_track_ids = [t['id'] for t in base_tracks[:5]] # Usar 5 como semilla
+                try:
+                    recommendations = sp.recommendations(seed_tracks=seed_track_ids, limit=8)
+                    uris.extend([t['uri'] for t in recommendations['tracks']])
+                except Exception as e:
+                    print(f"Error obteniendo recomendaciones: {e}")
+                    # Si falla la recomendación, rellenar con más canciones aleatorias de la lista
+                    remaining_needed = 18 - len(uris)
+                    if remaining_needed > 0:
+                        # Asegurarse de no añadir canciones que ya están
+                        extra_pool = [t for t in track_pool if t['uri'] not in uris]
+                        uris.extend([t['uri'] for t in random.sample(extra_pool, min(remaining_needed, len(extra_pool)))])
+            
+            # Crear la playlist en Spotify
+            descripcion = f"Playlist generada automáticamente por Emo2Music para un día {mood}."
             playlist = sp.user_playlist_create(user_info['id'], nombre, public=True, description=descripcion)
+            
+            # Añadir las canciones a la playlist
             sp.playlist_add_items(playlist['id'], uris)
 
-            return f"<h2>✅ Playlist '{nombre}' creada con éxito!</h2><a href='{playlist['external_urls']['spotify']}' target='_blank'>Ver en Spotify</a><br><a href='/dashboard'>Volver al dashboard</a>"
+            return f'''
+            <!DOCTYPE html>
+            <html lang="es">
+            <head>
+                <title>Playlist Creada</title>
+                <meta charset="UTF-8">
+                {get_base_css()}
+            </head>
+            <body>
+                <div class="container">
+                    <h1>Playlist Creada con Éxito</h1>
+                    <p>Tu playlist "{nombre}" está lista.</p>
+                    <a class="button" href="{playlist['external_urls']['spotify']}" target="_blank">Abrir en Spotify</a>
+                    <a class="button" href="/dashboard">Volver al Panel de Control</a>
+                </div>
+            </body>
+            </html>
+            '''
 
-        # GET: mostrar formulario
-        return '''
+        # GET: si no es POST, mostrar el formulario
+        return f'''
         <!DOCTYPE html>
-        <html>
+        <html lang="es">
         <head>
             <title>Crear Playlist por Estado de Ánimo</title>
             <meta charset="UTF-8">
-            <style>
-                body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: linear-gradient(135deg, #1DB954, #191414); color: white; min-height: 100vh; text-align: center; }
-                .container { background: rgba(0,0,0,0.3); padding: 40px; border-radius: 15px; max-width: 500px; margin: 40px auto; }
-                select, button { padding: 12px 20px; border-radius: 20px; border: none; font-size: 1.1em; margin: 10px; }
-                button { background: #1DB954; color: white; font-weight: bold; cursor: pointer; transition: all 0.3s; }
-                button:hover { background: #1ed760; }
-                h2 { color: #1DB954; }
-            </style>
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            {get_base_css()}
         </head>
         <body>
             <div class="container">
-                <h2>Crear Playlist según tu estado de ánimo</h2>
-                <form method="post">
-                    <label for="mood">Selecciona tu estado de ánimo:</label><br><br>
+                <h2>Crear Playlist por Estado de Ánimo</h2>
+                <form method="post" class="form-container">
+                    <label for="mood">Selecciona tu estado de ánimo actual:</label>
                     <select name="mood" id="mood" required>
-                        <option value="feliz">😊 Feliz</option>
-                        <option value="triste">😢 Triste</option>
-                        <option value="enfadado">😡 Enfadado</option>
-                    </select><br><br>
-                    <button type="submit">Crear Playlist</button>
+                        <option value="feliz">Feliz</option>
+                        <option value="triste">Triste</option>
+                        <option value="enfadado">Enfadado</option>
+                    </select>
+                    <br><br>
+                    <button class="button" type="submit">Crear Playlist</button>
                 </form>
-                <br><a href="/dashboard" style="color:#1DB954;">← Volver al dashboard</a>
+                <div class="footer-nav">
+                    <a href="/dashboard">Volver al Panel de Control</a>
+                </div>
             </div>
         </body>
         </html>
@@ -875,4 +653,4 @@ def crear_playlist():
         return f"Error al crear la playlist: {str(e)} <br><a href='/dashboard'>Volver</a>"
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
+    app.run(debug=True)
