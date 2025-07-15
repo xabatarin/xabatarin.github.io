@@ -535,48 +535,49 @@ def crear_playlist():
 
             # --- Lógica para Feliz y Triste ---
             
-            # 1. Obtener canciones base
-            top_artists = sp.current_user_top_artists(limit=10, time_range='long_term')
-            top_tracks = sp.current_user_top_tracks(limit=30, time_range='short_term')
-
-            # Diccionario para evitar duplicados usando el ID de la canción como clave
-            all_tracks = {}
-
-            # Añadir las 30 canciones más escuchadas del usuario
-            for track in top_tracks['items']:
-                if track and track.get('id'):
-                    all_tracks[track['id']] = track
+            # 1. Obtener las 20 canciones más escuchadas del último mes.
+            top_tracks_results = sp.current_user_top_tracks(limit=20, time_range='short_term')
             
-            # Añadir hasta 5 canciones de los 10 artistas favoritos
-            for artist in top_artists['items']:
+            # 2. Obtener los 10 artistas más escuchados del último mes.
+            top_artists_results = sp.current_user_top_artists(limit=10, time_range='short_term')
+
+            # Usar un diccionario para evitar duplicados por ID de canción.
+            track_pool = {track['id']: track for track in top_tracks_results['items'] if track and track.get('id')}
+
+            # 3. Añadir hasta 10 canciones populares de cada uno de los 10 artistas principales.
+            artist_ids = [artist['id'] for artist in top_artists_results['items'] if artist and artist.get('id')]
+            for artist_id in artist_ids:
                 try:
-                    # Usamos 'ES' como mercado para obtener resultados relevantes
-                    artist_tracks = sp.artist_top_tracks(artist['id'], country='ES')['tracks']
-                    for track in artist_tracks[:5]:
-                        if track and track.get('id') and track['id'] not in all_tracks:
-                            all_tracks[track['id']] = track
-                except Exception:
-                    continue # Si un artista no tiene canciones o falla, continuamos
+                    # Pedimos las 10 canciones más populares del artista.
+                    artist_top_tracks = sp.artist_top_tracks(artist_id, country='ES')['tracks']
+                    for track in artist_top_tracks: # Iteramos sobre las 10 canciones
+                        # Añadir solo si no está ya en la lista
+                        if track and track.get('id') and track['id'] not in track_pool:
+                            track_pool[track['id']] = track
+                except Exception as e:
+                    print(f"No se pudieron obtener canciones para el artista {artist_id}: {e}")
+                    continue
 
             # Convertir el diccionario de canciones únicas a una lista
-            track_pool = list(all_tracks.values())
+            final_track_list = list(track_pool.values())
             
-            if len(track_pool) < 18:
-                 return "<h2>No tienes suficientes canciones para crear una playlist. ¡Escucha más música!</h2><a href='/dashboard'>Volver</a>"
+            # Verificar si hay suficientes canciones para crear una playlist
+            if len(final_track_list) < 18:
+                 return f"<h2>No tienes suficientes canciones en tu historial para crear una playlist ({len(final_track_list)} encontradas). ¡Escucha más música!</h2><a href='/dashboard'>Volver</a>"
 
             uris = []
             nombre = ""
             
             if mood == 'triste':
                 nombre = "huts egiten ez dutenak"
-                # Elegir 18 canciones aleatorias de la lista de favoritas
-                final_tracks = random.sample(track_pool, 18)
-                uris = [t['uri'] for t in final_tracks]
+                # Elegir 18 canciones aleatorias de la lista combinada
+                selected_tracks = random.sample(final_track_list, 18)
+                uris = [t['uri'] for t in selected_tracks]
 
             elif mood == 'feliz':
                 nombre = "Playlist para un día feliz - Emo2Music"
-                # Elegir 10 canciones aleatorias de la lista de favoritas
-                base_tracks = random.sample(track_pool, 10)
+                # Elegir 10 canciones aleatorias de la lista combinada
+                base_tracks = random.sample(final_track_list, 10)
                 uris = [t['uri'] for t in base_tracks]
                 
                 # Obtener 8 recomendaciones basadas en las canciones elegidas
@@ -590,7 +591,7 @@ def crear_playlist():
                     remaining_needed = 18 - len(uris)
                     if remaining_needed > 0:
                         # Asegurarse de no añadir canciones que ya están
-                        extra_pool = [t for t in track_pool if t['uri'] not in uris]
+                        extra_pool = [t for t in final_track_list if t['uri'] not in uris]
                         uris.extend([t['uri'] for t in random.sample(extra_pool, min(remaining_needed, len(extra_pool)))])
             
             # Crear la playlist en Spotify
