@@ -794,12 +794,13 @@ def crear_playlist():
 
             # Obtener audio features para filtrar
             all_tracks = artist_tracks + top_tracks['items']
+            all_tracks = [t for t in all_tracks if t.get('id')]  # Solo tracks con id válido
             all_tracks = all_tracks[:30]  # Limitar para no exceder peticiones
-            track_ids = [t['id'] for t in all_tracks if t.get('id')]
+            track_ids = [t['id'] for t in all_tracks]
             features = sp.audio_features(track_ids)
             tracks_with_features = []
             for t, f in zip(all_tracks, features):
-                if f:
+                if f and f['energy'] is not None and f['valence'] is not None:
                     t['energy'] = f['energy']
                     t['valence'] = f['valence']
                     tracks_with_features.append(t)
