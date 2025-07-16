@@ -6,6 +6,8 @@ import secrets
 import os
 from dotenv import load_dotenv
 import random
+import joblib
+import re
 
 # Cargar variables de entorno
 load_dotenv()
@@ -496,6 +498,53 @@ def get_top_tracks():
     except Exception as e:
         return f"Error obteniendo tracks: {str(e)} - <a href='/dashboard'>Volver</a>"
 
+# --- Funciones del Modelo de Clasificación ---
+
+# Ruta a los modelos guardados
+MODEL_DIR = 'c:/Users/Xabat Arin/Desktop/spoty_app/models'
+VECTORIZER_PATH = os.path.join(MODEL_DIR, 'vectorizer.joblib')
+MODEL_PATH = os.path.join(MODEL_DIR, 'mlp_model.joblib')
+LABEL_ENCODER_PATH = os.path.join(MODEL_DIR, 'label_encoder.joblib')
+
+# Cargar los modelos una sola vez al iniciar la app
+try:
+    vectorizer = joblib.load(VECTORIZER_PATH)
+    mlp_model = joblib.load(MODEL_PATH)
+    label_encoder = joblib.load(LABEL_ENCODER_PATH)
+    print("Modelos de clasificación cargados correctamente.")
+except FileNotFoundError:
+    vectorizer, mlp_model, label_encoder = None, None, None
+    print("ADVERTENCIA: No se encontraron los archivos del modelo. La clasificación de texto no funcionará.")
+
+def limpiar_tweet(texto):
+    """Limpia el texto de entrada para que coincida con el preprocesamiento del modelo."""
+    texto = re.sub(r"http\S+|www\.\S+", "", texto)
+    texto = re.sub(r"@\w+", "", texto)
+    texto = re.sub(r"#\w+", "", texto)
+    texto = re.sub(r"[^\w\sáéíóúüñÁÉÍÓÚÜÑ]", "", texto)
+    texto = re.sub(r"\s+", " ", texto).strip()
+    return texto
+
+def predecir_sentimiento(texto):
+    """Predice el sentimiento de un texto usando el modelo MLP cargado."""
+    if not all([vectorizer, mlp_model, label_encoder]):
+        raise RuntimeError("Los modelos de clasificación no están cargados.")
+    
+    texto_limpio = limpiar_tweet(texto)
+    vector_texto = vectorizer.transform([texto_limpio])
+    prediccion_numerica = mlp_model.predict(vector_texto)
+    prediccion_etiqueta = label_encoder.inverse_transform(prediccion_numerica)
+    
+    # Mapear la etiqueta a un 'mood' simple
+    etiqueta = prediccion_etiqueta[0].strip()
+    if etiqueta == 'joy':
+        return 'feliz'
+    elif etiqueta == 'sadness':
+        return 'triste'
+    elif etiqueta == 'anger':
+        return 'enfadado'
+    return 'desconocido'
+
 @app.route('/crear-playlist', methods=['GET', 'POST'])
 def crear_playlist():
     try:
@@ -506,14 +555,25 @@ def crear_playlist():
         user_info = sp.current_user()
 
         if request.method == 'POST':
-            mood = request.form.get('mood')
-            if mood not in ['feliz', 'triste', 'enfadado']:
-                return 'Estado de ánimo no válido', 400
+            user_text = request.form.get('user_text')
+            if not user_text:
+                return 'Por favor, introduce un texto.', 400
 
+            # Predecir el estado de ánimo a partir del texto
+            try:
+                mood = predecir_sentimiento(user_text)
+            except RuntimeError as e:
+                return f"Error del modelo: {e}", 500
+            except Exception as e:
+                return f"Error al predecir el sentimiento: {e}", 500
+
+            if mood == 'desconocido':
+                return "No se pudo determinar un sentimiento claro del texto. Inténtalo de nuevo.", 400
+            
             # Si está enfadado, redirigir a una playlist tranquila
             if mood == 'enfadado':
-                # URL de una playlist de Spotify con música tranquila
-                calm_playlist_url = 'https://open.spotify.com/playlist/37i9dQZF1DX8NTLI25q_x0'
+                # URL de una playlist de Spotify con música tranquila (Peaceful Piano)
+                calm_playlist_url = 'https://open.spotify.com/playlist/37i9dQZF1DX4sWSpwq3LiO'
                 return f'''
                 <!DOCTYPE html>
                 <html lang="es">
@@ -625,21 +685,30 @@ def crear_playlist():
         <!DOCTYPE html>
         <html lang="es">
         <head>
-            <title>Crear Playlist por Estado de Ánimo</title>
+            <title>Crear Playlist por Sentimiento</title>
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
             {get_base_css()}
+            <style>
+                textarea {{
+                    width: 95%;
+                    padding: 15px;
+                    border-radius: 5px;
+                    border: 1px solid #535353;
+                    background-color: #282828;
+                    color: white;
+                    font-size: 1em;
+                    min-height: 80px;
+                    resize: vertical;
+                }}
+            </style>
         </head>
         <body>
             <div class="container">
-                <h2>Crear Playlist por Estado de Ánimo</h2>
+                <h2>Crear Playlist Basada en un Sentimiento</h2>
                 <form method="post" class="form-container">
-                    <label for="mood">Selecciona tu estado de ánimo actual:</label>
-                    <select name="mood" id="mood" required>
-                        <option value="feliz">Feliz</option>
-                        <option value="triste">Triste</option>
-                        <option value="enfadado">Enfadado</option>
-                    </select>
+                    <label for="user_text">Escribe una frase (máx. 240 caracteres) que describa cómo te sientes:</label>
+                    <textarea name="user_text" id="user_text" maxlength="240" required></textarea>
                     <br><br>
                     <button class="button" type="submit">Crear Playlist</button>
                 </form>
