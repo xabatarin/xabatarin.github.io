@@ -515,17 +515,23 @@ def limpiar_tweet(texto):
     texto = re.sub(r"[^\w\sáéíóúüñÁÉÍÓÚÜÑ]", "", texto)
     texto = re.sub(r"\s+", " ", texto).strip()
     return texto.lower()
+    
+def top_words_by_label(df, label_col, text_col, top_n):
+    vocab = set()
+    for label in df[label_col].unique():
+        textos = df[df[label_col] == label][text_col]
+        palabras = ' '.join(textos).split()
+        top = [w for w, _ in Counter(palabras).most_common(top_n)]
+        vocab.update(top)
+    return list(vocab)
 
 def train_sentiment_model():
     """
     Carga los datos, los preprocesa y entrena el modelo de clasificación de sentimientos.
     """
-    # Descargar stopwords si no están presentes
-    try:
-        stopwords.words('spanish')
-    except LookupError:
-        print("Descargando stopwords de NLTK...")
-        nltk.download('stopwords')
+    nltk.download('stopwords')
+    from nltk.corpus import stopwords
+    spanish_stopwords = set(stopwords.words('spanish'))
 
     # Construir la ruta al archivo de datos
     data_path = os.path.join(os.path.dirname(__file__), 'train.tsv')
@@ -536,7 +542,14 @@ def train_sentiment_model():
     print("Entrenando el modelo de clasificación de sentimientos...")
     # Cargar datos
     df = pd.read_csv(data_path, sep='\t', header=None, names=['text', 'sentiment'])
-    
+    df.columns = [col.strip() for col in df.columns]
+    df = df[df['label'].isin(['joy ', 'sadness ', 'anger '])].copy()
+    # Indizea berrabiarazi
+    df.reset_index(drop=True, inplace=True)
+    # 'id' zutabea kendu
+    df = df.drop(columns=['id'])
+    # 'HASHTAG' ordezkatu '#' karaktereagatik, aldaketa betirako gordez
+    df['tweet'] = df['tweet'].str.replace('HASHTAG', '#')
     # Limpieza y preprocesamiento
     df['text_cleaned'] = df['text'].apply(limpiar_tweet)
     stop_words = set(stopwords.words('spanish'))
@@ -544,14 +557,43 @@ def train_sentiment_model():
 
     # Codificar etiquetas y vectorizar texto
     label_encoder = LabelEncoder()
-    y = label_encoder.fit_transform(df['sentiment'])
+    y = label_encoder.fit_transform(df['label'])
     
-    vectorizer = TfidfVectorizer(max_features=5000)
-    X = vectorizer.fit_transform(df['text_cleaned'])
+
+
+    # Vocabulario personalizado (top-N por label)
+    custom_vocab = top_words_by_label(df, 'label', 'tweet', top_n=1250)
+
+    # Eliminar stopwords del vocabulario personalizado
+    custom_vocab_no_stop = [w for w in custom_vocab if w.lower() not in spanish_stopwords]
+
+    # Vectorizador con vocabulario personalizado sin stopwords
+    vectorizer = TfidfVectorizer(vocabulary=custom_vocab_no_stop)
+    X = vectorizer.fit_transform(df['tweet'])
+
+    tfidf_df = pd.DataFrame(X.toarray(), columns=vectorizer.get_feature_names_out())
+    tfidf_df['tweet'] = df['tweet'].values
+    tfidf_df['label'] = df['label'].values
+
+    cols = ['tweet'] + [col for col in tfidf_df.columns if col not in ['tweet', 'label']] + ['label']
+    tfidf_df = tfidf_df[cols]
 
     # Entrenar el clasificador MLP
-    mlp_model = MLPClassifier(hidden_layer_sizes=(100,), max_iter=300, random_state=42)
-    mlp_model.fit(X, y)
+    mlp = MLPClassifier(
+            hidden_layer_sizes=(256,128,32),
+            activation='tanh',
+            solver='adam',
+            alpha=0.1,
+            learning_rate_init=0.001,
+            max_iter=200,
+            random_state=42,
+            early_stopping=True,
+            n_iter_no_change=25,
+            tol=1e-4,
+            verbose=False
+        )
+    mlp.fit(X,y )
+
     
     print("Modelo entrenado y listo.")
     return vectorizer, mlp_model, label_encoder
