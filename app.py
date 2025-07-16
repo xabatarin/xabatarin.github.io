@@ -510,6 +510,11 @@ def get_top_tracks():
 
 def limpiar_tweet(texto):
     """Limpia el texto de entrada para que coincida con el preprocesamiento del modelo."""
+    # Asegurarse de que el input es un string
+    texto = str(texto)
+    # Reemplazar la palabra HASHTAG por el símbolo #, como pediste
+    texto = texto.replace('HASHTAG', '#')
+    # Limpieza con expresiones regulares
     texto = re.sub(r"http\S+|www\.\S+", "", texto)
     texto = re.sub(r"@\w+", "", texto)
     texto = re.sub(r"#\w+", "", texto)
@@ -531,7 +536,6 @@ def train_sentiment_model():
     Carga los datos, los preprocesa y entrena el modelo de clasificación de sentimientos.
     """
     nltk.download('stopwords')
-    from nltk.corpus import stopwords
     spanish_stopwords = set(stopwords.words('spanish'))
 
     # Construir la ruta al archivo de datos
@@ -549,8 +553,6 @@ def train_sentiment_model():
     df.reset_index(drop=True, inplace=True)
     # 'id' zutabea kendu
     df = df.drop(columns=['id'])
-    # 'HASHTAG' ordezkatu '#' karaktereagatik, aldaketa betirako gordez
-    df['tweet'] = df['tweet'].str.replace('HASHTAG', '#')
     # Limpieza y preprocesamiento
     df['tweet'] = df['tweet'].apply(limpiar_tweet)
     
@@ -577,7 +579,7 @@ def train_sentiment_model():
 
     cols = ['tweet'] + [col for col in tfidf_df.columns if col not in ['tweet', 'label']] + ['label']
     tfidf_df = tfidf_df[cols]
-
+    X_tfidf = tfidf_df.drop(['tweet', 'label'], axis=1).values
     # Entrenar el clasificador MLP
     mlp = MLPClassifier(
             hidden_layer_sizes=(256,128,32),
@@ -592,7 +594,7 @@ def train_sentiment_model():
             tol=1e-4,
             verbose=False
         )
-    mlp.fit(X,y )
+    mlp.fit(X_tfidf, y)
 
     
     print("Modelo entrenado y listo.")
