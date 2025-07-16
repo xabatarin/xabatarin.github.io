@@ -571,14 +571,6 @@ def train_sentiment_model():
     # Vectorizador con vocabulario personalizado sin stopwords
     vectorizer = TfidfVectorizer(vocabulary=custom_vocab_no_stop)
     X = vectorizer.fit_transform(df['tweet'])
-
-    tfidf_df = pd.DataFrame(X.toarray(), columns=vectorizer.get_feature_names_out())
-    tfidf_df['tweet'] = df['tweet'].values
-    tfidf_df['label'] = df['label'].values
-
-    cols = ['tweet'] + [col for col in tfidf_df.columns if col not in ['tweet', 'label']] + ['label']
-    tfidf_df = tfidf_df[cols]
-    X_tfidf = tfidf_df.drop(['tweet', 'label'], axis=1).values
     # Entrenar el clasificador MLP
     mlp = MLPClassifier(
             hidden_layer_sizes=(256,128,32),
@@ -593,7 +585,7 @@ def train_sentiment_model():
             tol=0.0001,
             verbose=False
         )
-    mlp.fit(X_tfidf, y)
+    mlp.fit(X, y)
 
     
     print("Modelo entrenado y listo.")
