@@ -513,11 +513,10 @@ def limpiar_tweet(texto):
     # Asegurarse de que el input es un string
     texto = str(texto)
     # Reemplazar la palabra HASHTAG por el símbolo #, como pediste
-    texto = texto.replace('HASHTAG', '#')
+    texto = texto.replace('HASHTAG', '')
     # Limpieza con expresiones regulares
     texto = re.sub(r"http\S+|www\.\S+", "", texto)
     texto = re.sub(r"@\w+", "", texto)
-    texto = re.sub(r"#\w+", "", texto)
     texto = re.sub(r"[^\w\sáéíóúüñÁÉÍÓÚÜÑ]", "", texto)
     texto = re.sub(r"\s+", " ", texto).strip()
     return texto.lower()
@@ -585,13 +584,13 @@ def train_sentiment_model():
             hidden_layer_sizes=(256,128,32),
             activation='tanh',
             solver='adam',
-            alpha=0.1,
+            alpha=0.01,
             learning_rate_init=0.001,
             max_iter=200,
             random_state=42,
             early_stopping=True,
             n_iter_no_change=25,
-            tol=1e-4,
+            tol=0.0001,
             verbose=False
         )
     mlp.fit(X_tfidf, y)
