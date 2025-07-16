@@ -500,8 +500,10 @@ def get_top_tracks():
 
 # --- Funciones del Modelo de Clasificación ---
 
-# Ruta a los modelos guardados
-MODEL_DIR = 'c:/Users/Xabat Arin/Desktop/spoty_app/models'
+# Construir la ruta a los modelos de forma relativa al script
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+MODEL_DIR = os.path.join(BASE_DIR, 'models')
+
 VECTORIZER_PATH = os.path.join(MODEL_DIR, 'vectorizer.joblib')
 MODEL_PATH = os.path.join(MODEL_DIR, 'mlp_model.joblib')
 LABEL_ENCODER_PATH = os.path.join(MODEL_DIR, 'label_encoder.joblib')
