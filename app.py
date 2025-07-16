@@ -596,19 +596,19 @@ def train_sentiment_model():
 
     
     print("Modelo entrenado y listo.")
-    return vectorizer, mlp_model, label_encoder
+    return vectorizer, mlp, label_encoder
 
 # Entrenar los modelos una sola vez al iniciar la app
-vectorizer, mlp_model, label_encoder = train_sentiment_model()
+vectorizer, mlp, label_encoder = train_sentiment_model()
 
 def predecir_sentimiento(texto):
     """Predice el sentimiento de un texto usando el modelo MLP cargado."""
-    if not all([vectorizer, mlp_model, label_encoder]):
+    if not all([vectorizer, mlp, label_encoder]):
         raise RuntimeError("Los modelos de clasificación no están cargados. Verifica que 'train.tsv' exista.")
     
     texto_limpio = limpiar_tweet(texto)
     vector_texto = vectorizer.transform([texto_limpio])
-    prediccion_numerica = mlp_model.predict(vector_texto)
+    prediccion_numerica = mlp.predict(vector_texto)
     prediccion_etiqueta = label_encoder.inverse_transform(prediccion_numerica)
     
     # Mapear la etiqueta a un 'mood' simple
