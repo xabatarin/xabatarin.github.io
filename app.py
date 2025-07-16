@@ -541,7 +541,8 @@ def train_sentiment_model():
 
     print("Entrenando el modelo de clasificación de sentimientos...")
     # Cargar datos
-    df = pd.read_csv(data_path, sep='\t', header=None, names=['text', 'label'])
+    df = pd.read_csv(data_path, sep='\t')
+    df.columns = [col.strip() for col in df.columns]
     df = df[df['label'].isin(['joy ', 'sadness ', 'anger '])].copy()
     # Indizea berrabiarazi
     df.reset_index(drop=True, inplace=True)
