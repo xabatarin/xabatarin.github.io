@@ -551,9 +551,8 @@ def train_sentiment_model():
     # 'HASHTAG' ordezkatu '#' karaktereagatik, aldaketa betirako gordez
     df['tweet'] = df['tweet'].str.replace('HASHTAG', '#')
     # Limpieza y preprocesamiento
-    df['text_cleaned'] = df['text'].apply(limpiar_tweet)
-    stop_words = set(stopwords.words('spanish'))
-    df['text_cleaned'] = df['text_cleaned'].apply(lambda x: ' '.join([word for word in x.split() if word not in stop_words]))
+    df['tweet'] = df['tweet'].apply(limpiar_tweet)
+    
 
     # Codificar etiquetas y vectorizar texto
     label_encoder = LabelEncoder()
