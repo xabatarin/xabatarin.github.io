@@ -8,6 +8,13 @@ from dotenv import load_dotenv
 import random
 import joblib
 import re
+import pandas as pd
+import nltk
+from nltk.corpus import stopwords
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.preprocessing import LabelEncoder
+from sklearn.neural_network import MLPClassifier
+from sklearn.model_selection import train_test_split
 
 # Cargar variables de entorno
 load_dotenv()
@@ -500,24 +507,6 @@ def get_top_tracks():
 
 # --- Funciones del Modelo de Clasificación ---
 
-# Construir la ruta a los modelos de forma relativa al script
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-MODEL_DIR = os.path.join(BASE_DIR, 'models')
-
-VECTORIZER_PATH = os.path.join(MODEL_DIR, 'vectorizer.joblib')
-MODEL_PATH = os.path.join(MODEL_DIR, 'mlp_model.joblib')
-LABEL_ENCODER_PATH = os.path.join(MODEL_DIR, 'label_encoder.joblib')
-
-# Cargar los modelos una sola vez al iniciar la app
-try:
-    vectorizer = joblib.load(VECTORIZER_PATH)
-    mlp_model = joblib.load(MODEL_PATH)
-    label_encoder = joblib.load(LABEL_ENCODER_PATH)
-    print("Modelos de clasificación cargados correctamente.")
-except FileNotFoundError:
-    vectorizer, mlp_model, label_encoder = None, None, None
-    print("ADVERTENCIA: No se encontraron los archivos del modelo. La clasificación de texto no funcionará.")
-
 def limpiar_tweet(texto):
     """Limpia el texto de entrada para que coincida con el preprocesamiento del modelo."""
     texto = re.sub(r"http\S+|www\.\S+", "", texto)
@@ -525,12 +514,55 @@ def limpiar_tweet(texto):
     texto = re.sub(r"#\w+", "", texto)
     texto = re.sub(r"[^\w\sáéíóúüñÁÉÍÓÚÜÑ]", "", texto)
     texto = re.sub(r"\s+", " ", texto).strip()
-    return texto
+    return texto.lower()
+
+def train_sentiment_model():
+    """
+    Carga los datos, los preprocesa y entrena el modelo de clasificación de sentimientos.
+    """
+    # Descargar stopwords si no están presentes
+    try:
+        stopwords.words('spanish')
+    except LookupError:
+        print("Descargando stopwords de NLTK...")
+        nltk.download('stopwords')
+
+    # Construir la ruta al archivo de datos
+    data_path = os.path.join(os.path.dirname(__file__), 'train.tsv')
+    if not os.path.exists(data_path):
+        print(f"ADVERTENCIA: El archivo de datos '{data_path}' no se encontró.")
+        return None, None, None
+
+    print("Entrenando el modelo de clasificación de sentimientos...")
+    # Cargar datos
+    df = pd.read_csv(data_path, sep='\t', header=None, names=['text', 'sentiment'])
+    
+    # Limpieza y preprocesamiento
+    df['text_cleaned'] = df['text'].apply(limpiar_tweet)
+    stop_words = set(stopwords.words('spanish'))
+    df['text_cleaned'] = df['text_cleaned'].apply(lambda x: ' '.join([word for word in x.split() if word not in stop_words]))
+
+    # Codificar etiquetas y vectorizar texto
+    label_encoder = LabelEncoder()
+    y = label_encoder.fit_transform(df['sentiment'])
+    
+    vectorizer = TfidfVectorizer(max_features=5000)
+    X = vectorizer.fit_transform(df['text_cleaned'])
+
+    # Entrenar el clasificador MLP
+    mlp_model = MLPClassifier(hidden_layer_sizes=(100,), max_iter=300, random_state=42)
+    mlp_model.fit(X, y)
+    
+    print("Modelo entrenado y listo.")
+    return vectorizer, mlp_model, label_encoder
+
+# Entrenar los modelos una sola vez al iniciar la app
+vectorizer, mlp_model, label_encoder = train_sentiment_model()
 
 def predecir_sentimiento(texto):
     """Predice el sentimiento de un texto usando el modelo MLP cargado."""
     if not all([vectorizer, mlp_model, label_encoder]):
-        raise RuntimeError("Los modelos de clasificación no están cargados.")
+        raise RuntimeError("Los modelos de clasificación no están cargados. Verifica que 'train.tsv' exista.")
     
     texto_limpio = limpiar_tweet(texto)
     vector_texto = vectorizer.transform([texto_limpio])
@@ -546,6 +578,8 @@ def predecir_sentimiento(texto):
     elif etiqueta == 'anger':
         return 'enfadado'
     return 'desconocido'
+
+
 
 @app.route('/crear-playlist', methods=['GET', 'POST'])
 def crear_playlist():
