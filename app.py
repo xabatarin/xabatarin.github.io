@@ -9,8 +9,6 @@ import random
 import joblib
 import re
 import pandas as pd
-import nltk
-from nltk.corpus import stopwords
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.preprocessing import LabelEncoder
 from sklearn.neural_network import MLPClassifier
@@ -534,8 +532,7 @@ def train_sentiment_model():
     """
     Carga los datos, los preprocesa y entrena el modelo de clasificación de sentimientos.
     """
-    nltk.download('stopwords')
-    spanish_stopwords = set(stopwords.words('spanish'))
+    spanish_stopwords={'estáis', 'tuviese', 'ante', 'estada', 'estuvimos', 'esta', 'hubiera', 'tendrán', 'sintiendo', 'hayamos', 'su', 'con', 'estuviera', 'hubieron', 'hubieses', 'de', 'tengo', 'tenemos', 'mi', 'hubieran', 'desde', 'sentidos', 'habrán', 'hayas', 'estamos', 'estábamos', 'fuera', 'tengan', 'seréis', 'serán', 'estés', 'esté', 'me', 'otros', 'hasta', 'tuve', 'mías', 'vuestro', 'habríais', 'vuestras', 'habría', 'tened', 'un', 'fueses', 'esas', 'vuestra', 'lo', 'yo', 'o', 'nos', 'habréis', 'te', 'que', 'suyas', 'le', 'éramos', 'estaremos', 'tengáis', 'hubiesen', 'sentidas', 'serías', 'suya', 'nuestra', 'hubiste', 'soy', 'mío', 'sois', 'sin', 'ese', 'habrá', 'nuestras', 'más', 'fuese', 'estuvierais', 'tuvieses', 'habido', 'tuya', 'estuviste', 'han', 'habíamos', 'estarías', 'nada', 'tuviesen', 'estéis', 'tengamos', 'seríais', 'eres', 'he', 'pero', 'tenían', 'estemos', 'sea', 'por', 'hubiésemos', 'tuyas', 'estaría', 'habidos', 'fueseis', 'os', 'tuvieseis', 'eso', 'hubiese', 'fueron', 'porque', 'algunos', 'sentida', 'habiendo', 'tuvieran', 'eras', 'otro', 'habías', 'tenido', 'hemos', 'ellas', 'estuvieron', 'estaríamos', 'tú', 'donde', 'nosotros', 'habíais', 'durante', 'tus', 'tenidas', 'tendría', 'vuestros', 'tenéis', 'siente', 'unos', 'mis', 'entre', 'habéis', 'estuviéramos', 'y', 'son', 'eran', 'poco', 'fuisteis', 'estando', 'tuvo', 'tuvisteis', 'hubimos', 'teniendo', 'estuviésemos', 'estás', 'les', 'hayan', 'era', 'tenía', 'estarían', 'había', 'tuvieron', 'los', 'ya', 'hubo', 'míos', 'estoy', 'cuando', 'habrías', 'vosotras', 'seamos', 'tendríais', 'haya', 'habrían', 'sean', 'hayáis', 'estadas', 'ella', 'vosotros', 'este', 'algo', 'tienen', 'algunas', 'se', 'erais', 'tuvimos', 'quien', 'esa', 'tengas', 'sus', 'has', 'no', 'habidas', 'estaríais', 'estaban', 'antes', 'tenga', 'otra', 'estados', 'fuiste', 'tuvierais', 'para', 'fuesen', 'tendrías', 'sería', 'también', 'tanto', 'estuvieseis', 'estuvieras', 'tendrá', 'estuvieses', 'nosotras', 'tuvieras', 'suyos', 'teníais', 'será', 'hubieras', 'tuviésemos', 'tuyo', 'ti', 'mucho', 'estado', 'todo', 'fueran', 'habremos', 'habré', 'estuviese', 'hubisteis', 'fuimos', 'muchos', 'estaba', 'esto', 'a', 'estar', 'fuéramos', 'sobre', 'estaré', 'estad', 'estará', 'estabas', 'muy', 'teníamos', 'mí', 'hay', 'esos', 'somos', 'nuestros', 'tendríamos', 'él', 'están', 'estabais', 'fui', 'seáis', 'tenida', 'habrás', 'cual', 'fuerais', 'tuviera', 'estuvieran', 'uno', 'contra', 'habían', 'ellos', 'una', 'ha', 'ni', 'seré', 'tuyos', 'hubieseis', 'hubiéramos', 'seremos', 'tenidos', 'está', 'en', 'tendréis', 'e', 'estén', 'serían', 'estuvo', 'tuviéramos', 'hube', 'serás', 'las', 'estarán', 'del', 'sentid', 'suyo', 'mía', 'estos', 'estuviesen', 'tiene', 'fuésemos', 'la', 'fueras', 'tu', 'sí', 'al', 'quienes', 'tienes', 'tenías', 'sentido', 'todos', 'tuviste', 'como', 'seríamos', 'estas', 'es', 'habida', 'fue', 'tendremos', 'habríamos', 'nuestro', 'estaréis', 'otras', 'tendrían', 'tendré', 'qué', 'estuve', 'estarás', 'el', 'estuvisteis', 'hubierais', 'tendrás', 'seas'}
 
     # Construir la ruta al archivo de datos
     data_path = os.path.join(os.path.dirname(__file__), 'train.tsv')
