@@ -605,7 +605,7 @@ def predecir_sentimiento(texto):
     prediccion_etiqueta = label_encoder.inverse_transform(prediccion_numerica)
     
     # Mapear la etiqueta a un 'mood' simple
-    etiqueta = prediccion_etiqueta[0].strip()
+    etiqueta = prediccion_etiqueta[0]
     if etiqueta == 'joy ':
         return 'feliz'
     elif etiqueta == 'sadness ':
