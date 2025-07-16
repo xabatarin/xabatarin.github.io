@@ -614,11 +614,11 @@ def predecir_sentimiento(texto):
     
     # Mapear la etiqueta a un 'mood' simple
     etiqueta = prediccion_etiqueta[0].strip()
-    if etiqueta == 'joy':
+    if etiqueta == 'joy ':
         return 'feliz'
-    elif etiqueta == 'sadness':
+    elif etiqueta == 'sadness ':
         return 'triste'
-    elif etiqueta == 'anger':
+    elif etiqueta == 'anger ':
         return 'enfadado'
     return 'desconocido'
 
