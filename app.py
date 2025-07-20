@@ -14,6 +14,12 @@ from sklearn.preprocessing import LabelEncoder
 from sklearn.neural_network import MLPClassifier
 from sklearn.model_selection import train_test_split
 from collections import Counter
+from transformers import AutoTokenizer, AutoModel
+import torch
+import numpy as np
+from tqdm import tqdm
+from sklearn.model_selection import RandomizedSearchCV, train_test_split
+from sklearn.metrics import f1_score
 
 # Cargar variables de entorno
 load_dotenv()
@@ -519,89 +525,93 @@ def limpiar_tweet(texto):
     texto = re.sub(r"\s+", " ", texto).strip()
     return texto.lower()
     
-def top_words_by_label(df, label_col, text_col, top_n):
-    vocab = set()
-    for label in df[label_col].unique():
-        textos = df[df[label_col] == label][text_col]
-        palabras = ' '.join(textos).split()
-        top = [w for w, _ in Counter(palabras).most_common(top_n)]
-        vocab.update(top)
-    return list(vocab)
+# Cargar tokenizer y modelo BERT español
+tokenizer = AutoTokenizer.from_pretrained(
+    "dccuchile/bert-base-spanish-wwm-uncased",
+    cache_dir="c:/Users/Xabat Arin/Desktop/TFG"
+)
+model = AutoModel.from_pretrained(
+    "dccuchile/bert-base-spanish-wwm-uncased",
+    cache_dir="c:/Users/Xabat Arin/Desktop/TFG"
+)
+model.eval()
+
+def obtener_embedding(texto):
+    inputs = tokenizer(texto, return_tensors="pt", truncation=True, padding=True, max_length=64)
+    with torch.no_grad():
+        outputs = model(**inputs)
+    # Media de todos los tokens (última capa oculta)
+    return outputs.last_hidden_state.mean(dim=1).squeeze().numpy()
 
 def train_sentiment_model():
     """
-    Carga los datos, los preprocesa y entrena el modelo de clasificación de sentimientos.
+    Carga los datos, los preprocesa y entrena el modelo de clasificación de sentimientos usando BERT embeddings.
     """
-    spanish_stopwords={'estáis', 'tuviese', 'ante', 'estada', 'estuvimos', 'esta', 'hubiera', 'tendrán', 'sintiendo', 'hayamos', 'su', 'con', 'estuviera', 'hubieron', 'hubieses', 'de', 'tengo', 'tenemos', 'mi', 'hubieran', 'desde', 'sentidos', 'habrán', 'hayas', 'estamos', 'estábamos', 'fuera', 'tengan', 'seréis', 'serán', 'estés', 'esté', 'me', 'otros', 'hasta', 'tuve', 'mías', 'vuestro', 'habríais', 'vuestras', 'habría', 'tened', 'un', 'fueses', 'esas', 'vuestra', 'lo', 'yo', 'o', 'nos', 'habréis', 'te', 'que', 'suyas', 'le', 'éramos', 'estaremos', 'tengáis', 'hubiesen', 'sentidas', 'serías', 'suya', 'nuestra', 'hubiste', 'soy', 'mío', 'sois', 'sin', 'ese', 'habrá', 'nuestras', 'más', 'fuese', 'estuvierais', 'tuvieses', 'habido', 'tuya', 'estuviste', 'han', 'habíamos', 'estarías', 'nada', 'tuviesen', 'estéis', 'tengamos', 'seríais', 'eres', 'he', 'pero', 'tenían', 'estemos', 'sea', 'por', 'hubiésemos', 'tuyas', 'estaría', 'habidos', 'fueseis', 'os', 'tuvieseis', 'eso', 'hubiese', 'fueron', 'porque', 'algunos', 'sentida', 'habiendo', 'tuvieran', 'eras', 'otro', 'habías', 'tenido', 'hemos', 'ellas', 'estuvieron', 'estaríamos', 'tú', 'donde', 'nosotros', 'habíais', 'durante', 'tus', 'tenidas', 'tendría', 'vuestros', 'tenéis', 'siente', 'unos', 'mis', 'entre', 'habéis', 'estuviéramos', 'y', 'son', 'eran', 'poco', 'fuisteis', 'estando', 'tuvo', 'tuvisteis', 'hubimos', 'teniendo', 'estuviésemos', 'estás', 'les', 'hayan', 'era', 'tenía', 'estarían', 'había', 'tuvieron', 'los', 'ya', 'hubo', 'míos', 'estoy', 'cuando', 'habrías', 'vosotras', 'seamos', 'tendríais', 'haya', 'habrían', 'sean', 'hayáis', 'estadas', 'ella', 'vosotros', 'este', 'algo', 'tienen', 'algunas', 'se', 'erais', 'tuvimos', 'quien', 'esa', 'tengas', 'sus', 'has', 'no', 'habidas', 'estaríais', 'estaban', 'antes', 'tenga', 'otra', 'estados', 'fuiste', 'tuvierais', 'para', 'fuesen', 'tendrías', 'sería', 'también', 'tanto', 'estuvieseis', 'estuvieras', 'tendrá', 'estuvieses', 'nosotras', 'tuvieras', 'suyos', 'teníais', 'será', 'hubieras', 'tuviésemos', 'tuyo', 'ti', 'mucho', 'estado', 'todo', 'fueran', 'habremos', 'habré', 'estuviese', 'hubisteis', 'fuimos', 'muchos', 'estaba', 'esto', 'a', 'estar', 'fuéramos', 'sobre', 'estaré', 'estad', 'estará', 'estabas', 'muy', 'teníamos', 'mí', 'hay', 'esos', 'somos', 'nuestros', 'tendríamos', 'él', 'están', 'estabais', 'fui', 'seáis', 'tenida', 'habrás', 'cual', 'fuerais', 'tuviera', 'estuvieran', 'uno', 'contra', 'habían', 'ellos', 'una', 'ha', 'ni', 'seré', 'tuyos', 'hubieseis', 'hubiéramos', 'seremos', 'tenidos', 'está', 'en', 'tendréis', 'e', 'estén', 'serían', 'estuvo', 'tuviéramos', 'hube', 'serás', 'las', 'estarán', 'del', 'sentid', 'suyo', 'mía', 'estos', 'estuviesen', 'tiene', 'fuésemos', 'la', 'fueras', 'tu', 'sí', 'al', 'quienes', 'tienes', 'tenías', 'sentido', 'todos', 'tuviste', 'como', 'seríamos', 'estas', 'es', 'habida', 'fue', 'tendremos', 'habríamos', 'nuestro', 'estaréis', 'otras', 'tendrían', 'tendré', 'qué', 'estuve', 'estarás', 'el', 'estuvisteis', 'hubierais', 'tendrás', 'seas'}
-
-    # Construir la ruta al archivo de datos
     data_path = os.path.join(os.path.dirname(__file__), 'train.tsv')
     if not os.path.exists(data_path):
         print(f"ADVERTENCIA: El archivo de datos '{data_path}' no se encontró.")
         return None, None, None
 
-    print("Entrenando el modelo de clasificación de sentimientos...")
-    # Cargar datos
+    print("Entrenando el modelo de clasificación de sentimientos (BERT)...")
     df = pd.read_csv(data_path, sep='\t')
     df.columns = [col.strip() for col in df.columns]
     df = df[df['label'].isin(['joy ', 'sadness ', 'anger '])].copy()
-    # Indizea berrabiarazi
     df.reset_index(drop=True, inplace=True)
-    # 'id' zutabea kendu
     df = df.drop(columns=['id'])
-    # Limpieza y preprocesamiento
     df['tweet'] = df['tweet'].apply(limpiar_tweet)
-    
 
-    # Codificar etiquetas y vectorizar texto
+    # Codificar etiquetas
     label_encoder = LabelEncoder()
     y = label_encoder.fit_transform(df['label'])
-    
+
+    # Calcular embeddings para todos los tweets
+    embeddings = np.array([obtener_embedding(t) for t in tqdm(df['tweet'], desc="Embeddings")])
 
 
-    # Vocabulario personalizado (top-N por label)
-    custom_vocab = top_words_by_label(df, 'label', 'tweet', top_n=1250)
-
-    # Eliminar stopwords del vocabulario personalizado
-    custom_vocab_no_stop = [w for w in custom_vocab if w.lower() not in spanish_stopwords]
-
-    # Vectorizador con vocabulario personalizado sin stopwords
-    vectorizer = TfidfVectorizer(vocabulary=custom_vocab_no_stop)
-    X = vectorizer.fit_transform(df['tweet'])
-    # Entrenar el clasificador MLP
+    # Definir el MLP con los hiperparámetros ya elegidos
     mlp = MLPClassifier(
-            hidden_layer_sizes=(256,128,32),
-            activation='tanh',
-            solver='adam',
-            alpha=0.01,
-            learning_rate_init=0.001,
-            max_iter=200,
-            random_state=42,
-            early_stopping=True,
-            n_iter_no_change=25,
-            tol=0.0001,
-            verbose=False
-        )
-    mlp.fit(X, y)
+        hidden_layer_sizes=(64,),
+        activation='logistic',
+        alpha=0.001,
+        learning_rate_init=0.0001,
+        batch_size=32,
+        solver='adam',
+        max_iter=700,
+        random_state=42,
+        early_stopping=True,
+        n_iter_no_change=25,
+        tol=1e-4,
+        verbose=False
+    )
 
-    
-    print("Modelo entrenado y listo.")
-    return vectorizer, mlp, label_encoder
+    print("Entrenando MLP con los mejores parámetros...")
+    # Entrenar el modelo con todos los datos disponibles
+    mlp.fit(embeddings, y)
 
-# Entrenar los modelos una sola vez al iniciar la app
-vectorizer, mlp, label_encoder = train_sentiment_model()
+    # Guardar los modelos entrenados (opcional, pero recomendado para producción)
+    # joblib.dump(mlp, 'mlp_model.pkl')
+    # joblib.dump(label_encoder, 'label_encoder.pkl')
+
+    print("Entrenamiento del MLP completado.")
+    return mlp, label_encoder
+
+# Cargar o entrenar el modelo al iniciar la aplicación
+try:
+    # La función devuelve mlp y label_encoder
+    mlp, label_encoder = train_sentiment_model()
+    if not all([mlp, label_encoder]):
+        print("ADVERTENCIA: El entrenamiento del modelo falló. La funcionalidad de playlist por ánimo no estará disponible.")
+except Exception as e:
+    print(f"Error crítico al entrenar el modelo: {e}")
+    # Asignar None para que las rutas que dependen del modelo puedan manejar el error
+    mlp, label_encoder = None, None
 
 def predecir_sentimiento(texto):
-    """Predice el sentimiento de un texto usando el modelo MLP cargado."""
-    if not all([vectorizer, mlp, label_encoder]):
-        raise RuntimeError("Los modelos de clasificación no están cargados. Verifica que 'train.tsv' exista.")
-    
     texto_limpio = limpiar_tweet(texto)
-    vector_texto = vectorizer.transform([texto_limpio])
-    prediccion_numerica = mlp.predict(vector_texto)
+    embedding = obtener_embedding(texto_limpio)
+    prediccion_numerica = mlp.predict([embedding])
     prediccion_etiqueta = label_encoder.inverse_transform(prediccion_numerica)
     
-    # Mapear la etiqueta a un 'mood' simple
     etiqueta = prediccion_etiqueta[0]
     if etiqueta == 'joy ':
         return 'pozik'
