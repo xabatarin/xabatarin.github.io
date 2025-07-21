@@ -569,7 +569,7 @@ def train_sentiment_model():
     # Entrenar el clasificador MLP
     mlp = MLPClassifier(
             hidden_layer_sizes=(64,),
-            activation='sigmoid',
+            activation='logistic',  # Cambiado de 'sigmoid' a 'logistic'
             solver='adam',
             alpha=0.01,
             learning_rate_init=0.001,
