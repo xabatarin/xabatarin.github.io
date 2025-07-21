@@ -14,13 +14,9 @@ os.makedirs(cache_dir, exist_ok=True)
 from dotenv import load_dotenv
 import random
 import re
-import pandas as pd
-from sklearn.preprocessing import LabelEncoder
-from sklearn.neural_network import MLPClassifier
 from transformers import AutoTokenizer, AutoModel
 import torch
 import numpy as np
-from tqdm import tqdm
 import joblib
 
 # Cargar variables de entorno
@@ -768,65 +764,3 @@ def crear_playlist():
     except Exception as e:
         return f"Error al crear la playlist: {str(e)} <br><a href='/dashboard'>Volver</a>"
 
-def train_and_save_model():
-    """
-    Función para entrenar y guardar el modelo. 
-    Esta función NO se ejecuta en producción, solo localmente.
-    """
-    data_path = os.path.join(os.path.dirname(__file__), 'train.tsv')
-    if not os.path.exists(data_path):
-        print(f"ADVERTENCIA: El archivo de datos '{data_path}' no se encontró. No se puede entrenar el modelo.")
-        return
-
-    print("Iniciando el entrenamiento del modelo de clasificación...")
-    df = pd.read_csv(data_path, sep='\t')
-    df.columns = [col.strip() for col in df.columns]
-    df = df[df['label'].isin(['joy ', 'sadness ', 'anger '])].copy()
-    df.reset_index(drop=True, inplace=True)
-    df = df.drop(columns=['id'])
-    df['tweet'] = df['tweet'].apply(limpiar_tweet)
-
-    # Codificar etiquetas
-    le = LabelEncoder()
-    y = le.fit_transform(df['label'])
-
-    # Calcular embeddings para todos los tweets
-    print("Calculando embeddings con BERT...")
-    embeddings = np.array([obtener_embedding(t) for t in tqdm(df['tweet'], desc="Generando Embeddings")])
-
-    # Definir y entrenar el MLP
-    print("Entrenando el clasificador MLP...")
-    mlp_classifier = MLPClassifier(
-        hidden_layer_sizes=(64,),
-        activation='logistic',
-        alpha=0.001,
-        learning_rate_init=0.0001,
-        batch_size=32,
-        solver='adam',
-        max_iter=700,
-        random_state=42,
-        early_stopping=True,
-        n_iter_no_change=25,
-        tol=1e-4,
-        verbose=False
-    )
-    mlp_classifier.fit(embeddings, y)
-    print("Entrenamiento completado.")
-
-    # Guardar los modelos
-    print("Guardando modelos en 'mlp_model.pkl' y 'label_encoder.pkl'...")
-    joblib.dump(mlp_classifier, 'mlp_model.pkl')
-    joblib.dump(le, 'label_encoder.pkl')
-    print("Modelos guardados con éxito.")
-
-
-if __name__ == '__main__':
-    # Esta sección solo se ejecuta cuando corres 'python app.py' directamente.
-    # Comprueba si los modelos existen. Si no, los entrena.
-    if not os.path.exists('mlp_model.pkl') or not os.path.exists('label_encoder.pkl'):
-        print("Archivos de modelo no encontrados. Iniciando entrenamiento...")
-        train_and_save_model()
-    
-    # Iniciar la aplicación Flask para pruebas locales
-    # Render usará Gunicorn, no esto.
-    app.run(debug=True, host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))

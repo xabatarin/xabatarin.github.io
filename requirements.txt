@@ -1,10 +1,10 @@
+# filepath: c:\Users\Xabat Arin\Desktop\spoty_app\requirements.txt
 flask
 spotipy
 python-dotenv
-pandas
 scikit-learn
 transformers
 torch
 numpy
-tqdm
 gunicorn
+joblib
