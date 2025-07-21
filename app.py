@@ -4,6 +4,13 @@ from spotipy.oauth2 import SpotifyOAuth
 from spotipy.cache_handler import MemoryCacheHandler
 import secrets
 import os
+
+# Set a local cache directory for Hugging Face models to avoid permission errors
+# This must be done BEFORE importing transformers
+cache_dir = os.path.join(os.path.dirname(__file__), 'huggingface_cache')
+os.environ['HF_HOME'] = cache_dir
+os.makedirs(cache_dir, exist_ok=True)
+
 from dotenv import load_dotenv
 import random
 import re
@@ -14,6 +21,7 @@ from transformers import AutoTokenizer, AutoModel
 import torch
 import numpy as np
 from tqdm import tqdm
+import joblib
 
 # Cargar variables de entorno
 load_dotenv()
@@ -520,6 +528,8 @@ def limpiar_tweet(texto):
     return texto.lower()
     
 # Cargar tokenizer y modelo BERT (versión más ligera para despliegue)
+# Esto se carga en memoria al iniciar, es inevitable pero hemos elegido un modelo pequeño.
+print("Cargando modelo BERT (distilbert-base-multilingual-cased)...")
 tokenizer = AutoTokenizer.from_pretrained(
     "distilbert-base-multilingual-cased"
 )
@@ -527,6 +537,7 @@ model = AutoModel.from_pretrained(
     "distilbert-base-multilingual-cased"
 )
 model.eval()
+print("Modelo BERT cargado.")
 
 def obtener_embedding(texto):
     inputs = tokenizer(texto, return_tensors="pt", truncation=True, padding=True, max_length=64)
@@ -535,73 +546,31 @@ def obtener_embedding(texto):
     # Media de todos los tokens (última capa oculta)
     return outputs.last_hidden_state.mean(dim=1).squeeze().numpy()
 
-def train_sentiment_model():
-    """
-    Carga los datos, los preprocesa y entrena el modelo de clasificación de sentimientos usando BERT embeddings.
-    """
-    data_path = os.path.join(os.path.dirname(__file__), 'train.tsv')
-    if not os.path.exists(data_path):
-        print(f"ADVERTENCIA: El archivo de datos '{data_path}' no se encontró.")
-        return None, None, None
-
-    print("Entrenando el modelo de clasificación de sentimientos (BERT)...")
-    df = pd.read_csv(data_path, sep='\t')
-    df.columns = [col.strip() for col in df.columns]
-    df = df[df['label'].isin(['joy ', 'sadness ', 'anger '])].copy()
-    df.reset_index(drop=True, inplace=True)
-    df = df.drop(columns=['id'])
-    df['tweet'] = df['tweet'].apply(limpiar_tweet)
-
-    # Codificar etiquetas
-    label_encoder = LabelEncoder()
-    y = label_encoder.fit_transform(df['label'])
-
-    # Calcular embeddings para todos los tweets
-    embeddings = np.array([obtener_embedding(t) for t in tqdm(df['tweet'], desc="Embeddings")])
-
-
-    # Definir el MLP con los hiperparámetros ya elegidos
-    mlp = MLPClassifier(
-        hidden_layer_sizes=(64,),
-        activation='logistic',
-        alpha=0.001,
-        learning_rate_init=0.0001,
-        batch_size=32,
-        solver='adam',
-        max_iter=700,
-        random_state=42,
-        early_stopping=True,
-        n_iter_no_change=25,
-        tol=1e-4,
-        verbose=False
-    )
-
-    print("Entrenando MLP con los mejores parámetros...")
-    # Entrenar el modelo con todos los datos disponibles
-    mlp.fit(embeddings, y)
-
-    # Guardar los modelos entrenados (opcional, pero recomendado para producción)
-    # joblib.dump(mlp, 'mlp_model.pkl')
-    # joblib.dump(label_encoder, 'label_encoder.pkl')
-
-    print("Entrenamiento del MLP completado.")
-    return mlp, label_encoder
-
-# Cargar o entrenar el modelo al iniciar la aplicación
+# --- Carga del modelo pre-entrenado ---
 try:
-    # La función devuelve mlp y label_encoder
-    mlp, label_encoder = train_sentiment_model()
-    if not all([mlp, label_encoder]):
-        print("ADVERTENCIA: El entrenamiento del modelo falló. La funcionalidad de playlist por ánimo no estará disponible.")
+    print("Cargando MLP y LabelEncoder pre-entrenados...")
+    mlp = joblib.load('mlp_model.pkl')
+    label_encoder = joblib.load('label_encoder.pkl')
+    print("Modelos cargados correctamente.")
+except FileNotFoundError:
+    print("ADVERTENCIA: No se encontraron los archivos 'mlp_model.pkl' o 'label_encoder.pkl'.")
+    print("La funcionalidad de creación de playlists no estará disponible.")
+    print("Ejecuta este script localmente ('python app.py') para generar los archivos del modelo.")
+    mlp, label_encoder = None, None
 except Exception as e:
-    print(f"Error crítico al entrenar el modelo: {e}")
-    # Asignar None para que las rutas que dependen del modelo puedan manejar el error
+    print(f"Error al cargar los modelos: {e}")
     mlp, label_encoder = None, None
 
+
 def predecir_sentimiento(texto):
+    if not all([mlp, label_encoder]):
+        raise RuntimeError("Los modelos de clasificación no están cargados. Ejecuta el script de entrenamiento primero.")
+
     texto_limpio = limpiar_tweet(texto)
     embedding = obtener_embedding(texto_limpio)
-    prediccion_numerica = mlp.predict([embedding])
+    # El embedding debe tener la forma (1, N_features) para el MLP
+    embedding = embedding.reshape(1, -1)
+    prediccion_numerica = mlp.predict(embedding)
     prediccion_etiqueta = label_encoder.inverse_transform(prediccion_numerica)
     
     etiqueta = prediccion_etiqueta[0]
@@ -612,7 +581,6 @@ def predecir_sentimiento(texto):
     elif etiqueta == 'anger ':
         return 'hasarre'
     return 'desconocido'
-
 
 
 @app.route('/crear-playlist', methods=['GET', 'POST'])
@@ -792,5 +760,65 @@ def crear_playlist():
     except Exception as e:
         return f"Error al crear la playlist: {str(e)} <br><a href='/dashboard'>Volver</a>"
 
+def train_and_save_model():
+    """
+    Función para entrenar y guardar el modelo. 
+    Esta función NO se ejecuta en producción, solo localmente.
+    """
+    data_path = os.path.join(os.path.dirname(__file__), 'train.tsv')
+    if not os.path.exists(data_path):
+        print(f"ADVERTENCIA: El archivo de datos '{data_path}' no se encontró. No se puede entrenar el modelo.")
+        return
+
+    print("Iniciando el entrenamiento del modelo de clasificación...")
+    df = pd.read_csv(data_path, sep='\t')
+    df.columns = [col.strip() for col in df.columns]
+    df = df[df['label'].isin(['joy ', 'sadness ', 'anger '])].copy()
+    df.reset_index(drop=True, inplace=True)
+    df = df.drop(columns=['id'])
+    df['tweet'] = df['tweet'].apply(limpiar_tweet)
+
+    # Codificar etiquetas
+    le = LabelEncoder()
+    y = le.fit_transform(df['label'])
+
+    # Calcular embeddings para todos los tweets
+    print("Calculando embeddings con BERT...")
+    embeddings = np.array([obtener_embedding(t) for t in tqdm(df['tweet'], desc="Generando Embeddings")])
+
+    # Definir y entrenar el MLP
+    print("Entrenando el clasificador MLP...")
+    mlp_classifier = MLPClassifier(
+        hidden_layer_sizes=(64,),
+        activation='logistic',
+        alpha=0.001,
+        learning_rate_init=0.0001,
+        batch_size=32,
+        solver='adam',
+        max_iter=700,
+        random_state=42,
+        early_stopping=True,
+        n_iter_no_change=25,
+        tol=1e-4,
+        verbose=False
+    )
+    mlp_classifier.fit(embeddings, y)
+    print("Entrenamiento completado.")
+
+    # Guardar los modelos
+    print("Guardando modelos en 'mlp_model.pkl' y 'label_encoder.pkl'...")
+    joblib.dump(mlp_classifier, 'mlp_model.pkl')
+    joblib.dump(le, 'label_encoder.pkl')
+    print("Modelos guardados con éxito.")
+
+
 if __name__ == '__main__':
-    app.run(debug=True)
+    # Esta sección solo se ejecuta cuando corres 'python app.py' directamente.
+    # Comprueba si los modelos existen. Si no, los entrena.
+    if not os.path.exists('mlp_model.pkl') or not os.path.exists('label_encoder.pkl'):
+        print("Archivos de modelo no encontrados. Iniciando entrenamiento...")
+        train_and_save_model()
+    
+    # Iniciar la aplicación Flask para pruebas locales
+    # Render usará Gunicorn, no esto.
+    app.run(debug=True, host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
