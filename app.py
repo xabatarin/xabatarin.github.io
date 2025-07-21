@@ -527,19 +527,27 @@ def limpiar_tweet(texto):
     texto = re.sub(r"\s+", " ", texto).strip()
     return texto.lower()
     
-# Cargar tokenizer y modelo BERT (versión más ligera para despliegue)
-# Esto se carga en memoria al iniciar, es inevitable pero hemos elegido un modelo pequeño.
-print("Cargando modelo BERT (distilbert-base-multilingual-cased)...")
-tokenizer = AutoTokenizer.from_pretrained(
-    "distilbert-base-multilingual-cased"
-)
-model = AutoModel.from_pretrained(
-    "distilbert-base-multilingual-cased"
-)
-model.eval()
-print("Modelo BERT cargado.")
+# Inicializar modelos como None. Se cargarán en el primer uso para ahorrar memoria en el arranque.
+tokenizer = None
+model = None
+
+def load_bert_model():
+    """Carga el modelo y tokenizador BERT en memoria si aún no se han cargado."""
+    global tokenizer, model
+    if tokenizer is None or model is None:
+        print("Cargando modelo BERT (distilbert-base-multilingual-cased) por primera vez...")
+        tokenizer = AutoTokenizer.from_pretrained(
+            "distilbert-base-multilingual-cased"
+        )
+        model = AutoModel.from_pretrained(
+            "distilbert-base-multilingual-cased"
+        )
+        model.eval()
+        print("Modelo BERT cargado.")
 
 def obtener_embedding(texto):
+    # Asegurarse de que el modelo esté cargado antes de usarlo
+    load_bert_model()
     inputs = tokenizer(texto, return_tensors="pt", truncation=True, padding=True, max_length=64)
     with torch.no_grad():
         outputs = model(**inputs)
