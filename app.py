@@ -4,18 +4,9 @@ from spotipy.oauth2 import SpotifyOAuth
 from spotipy.cache_handler import MemoryCacheHandler
 import secrets
 import os
-
-# Set a local cache directory for Hugging Face models to avoid permission errors
-# This must be done BEFORE importing transformers
-cache_dir = os.path.join(os.path.dirname(__file__), 'huggingface_cache')
-os.environ['HF_HOME'] = cache_dir
-os.makedirs(cache_dir, exist_ok=True)
-
 from dotenv import load_dotenv
 import random
 import re
-from transformers import AutoTokenizer, AutoModel
-import torch
 import numpy as np
 import joblib
 
@@ -522,59 +513,29 @@ def limpiar_tweet(texto):
     texto = re.sub(r"[^\w\sáéíóúüñÁÉÍÓÚÜÑ]", "", texto)
     texto = re.sub(r"\s+", " ", texto).strip()
     return texto.lower()
-    
-# Inicializar modelos como None. Se cargarán en el primer uso para ahorrar memoria en el arranque.
-tokenizer = None
-model = None
 
-def load_bert_model():
-    """Carga el modelo y tokenizador BERT en memoria si aún no se han cargado."""
-    global tokenizer, model
-    if tokenizer is None or model is None:
-        print("Cargando modelo BERT (distilbert-base-multilingual-cased) por primera vez...")
-        tokenizer = AutoTokenizer.from_pretrained(
-            "distilbert-base-multilingual-cased"
-        )
-        model = AutoModel.from_pretrained(
-            "distilbert-base-multilingual-cased"
-        )
-        model.eval()
-        print("Modelo BERT cargado.")
-
-def obtener_embedding(texto):
-    # Asegurarse de que el modelo esté cargado antes de usarlo
-    load_bert_model()
-    inputs = tokenizer(texto, return_tensors="pt", truncation=True, padding=True, max_length=64)
-    with torch.no_grad():
-        outputs = model(**inputs)
-    # Media de todos los tokens (última capa oculta)
-    return outputs.last_hidden_state.mean(dim=1).squeeze().numpy()
-
-# --- Carga del modelo pre-entrenado ---
+# --- Carga de modelos TF-IDF pre-entrenados ---
 try:
-    print("Cargando MLP y LabelEncoder pre-entrenados...")
+    print("Cargando modelos (Vectorizer, MLP, LabelEncoder)...")
+    vectorizer = joblib.load('vectorizer.pkl')
     mlp = joblib.load('mlp_model.pkl')
     label_encoder = joblib.load('label_encoder.pkl')
     print("Modelos cargados correctamente.")
 except FileNotFoundError:
-    print("ADVERTENCIA: No se encontraron los archivos 'mlp_model.pkl' o 'label_encoder.pkl'.")
-    print("La funcionalidad de creación de playlists no estará disponible.")
-    print("Ejecuta este script localmente ('python app.py') para generar los archivos del modelo.")
-    mlp, label_encoder = None, None
+    print("ADVERTENCIA: No se encontraron los archivos del modelo (.pkl). La predicción de sentimiento no funcionará.")
+    vectorizer, mlp, label_encoder = None, None, None
 except Exception as e:
     print(f"Error al cargar los modelos: {e}")
-    mlp, label_encoder = None, None
+    vectorizer, mlp, label_encoder = None, None, None
 
 
 def predecir_sentimiento(texto):
-    if not all([mlp, label_encoder]):
-        raise RuntimeError("Los modelos de clasificación no están cargados. Ejecuta el script de entrenamiento primero.")
+    if not all([vectorizer, mlp, label_encoder]):
+        raise RuntimeError("Los modelos de clasificación no están cargados.")
 
     texto_limpio = limpiar_tweet(texto)
-    embedding = obtener_embedding(texto_limpio)
-    # El embedding debe tener la forma (1, N_features) para el MLP
-    embedding = embedding.reshape(1, -1)
-    prediccion_numerica = mlp.predict(embedding)
+    vector_texto = vectorizer.transform([texto_limpio])
+    prediccion_numerica = mlp.predict(vector_texto)
     prediccion_etiqueta = label_encoder.inverse_transform(prediccion_numerica)
     
     etiqueta = prediccion_etiqueta[0]
@@ -683,7 +644,7 @@ def crear_playlist():
                 uris = [t['uri'] for t in base_tracks]
                 
                 # Obtener 8 recomendaciones basadas en las canciones elegidas
-                seed_track_ids = [t['id'] for t in base_tracks[:5]] # Usar 5 como semilla
+                seed_track_ids = [t['id'] for t in base_tracks[:1]] # Usar 5 como semilla
                 try:
                     recommendations = sp.recommendations(seed_tracks=seed_track_ids, limit=8, market=user_market)
                     uris.extend([t['uri'] for t in recommendations['tracks']])
@@ -763,4 +724,4 @@ def crear_playlist():
         '''
     except Exception as e:
         return f"Error al crear la playlist: {str(e)} <br><a href='/dashboard'>Volver</a>"
-
+        
