@@ -6,20 +6,14 @@ import secrets
 import os
 from dotenv import load_dotenv
 import random
-import joblib
 import re
 import pandas as pd
-from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.preprocessing import LabelEncoder
 from sklearn.neural_network import MLPClassifier
-from sklearn.model_selection import train_test_split
-from collections import Counter
 from transformers import AutoTokenizer, AutoModel
 import torch
 import numpy as np
 from tqdm import tqdm
-from sklearn.model_selection import RandomizedSearchCV, train_test_split
-from sklearn.metrics import f1_score
 
 # Cargar variables de entorno
 load_dotenv()
@@ -525,14 +519,12 @@ def limpiar_tweet(texto):
     texto = re.sub(r"\s+", " ", texto).strip()
     return texto.lower()
     
-# Cargar tokenizer y modelo BERT español
+# Cargar tokenizer y modelo BERT (versión más ligera para despliegue)
 tokenizer = AutoTokenizer.from_pretrained(
-    "dccuchile/bert-base-spanish-wwm-uncased",
-    cache_dir="c:/Users/Xabat Arin/Desktop/TFG"
+    "distilbert-base-multilingual-cased"
 )
 model = AutoModel.from_pretrained(
-    "dccuchile/bert-base-spanish-wwm-uncased",
-    cache_dir="c:/Users/Xabat Arin/Desktop/TFG"
+    "distilbert-base-multilingual-cased"
 )
 model.eval()
 
